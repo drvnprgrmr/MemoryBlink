@@ -66,7 +66,7 @@ void ledOff()
            { ledOff(i); });
 }
 
-int flashOnTime = 180;
+int flashOnTime = 0;
 void setFlashOnTime(int onTime)
 {
   flashOnTime = onTime;
@@ -86,36 +86,46 @@ void flashLed(int ledPos)
   ledOff(ledPos);
 }
 
-void addToSequence()
+void addToGeneratedSequence()
 {
   generatedSequence[generatedSequenceLength++] = random(NUM_PADS);
 }
 
-void addToSequence(int count)
+void addToGeneratedSequence(int count)
 {
   if (generatedSequenceLength < MAX_SEQUENCE)
   {
     for (int i = 0; i < count; i++)
     {
-      addToSequence();
+      addToGeneratedSequence();
     }
   }
 }
 
-void clearSequence()
+void clearGeneratedSequence()
 {
   generatedSequenceLength = 0;
 }
 
-void displaySequence()
+void clearInputSequence()
+{
+  inputSequenceLength = 0;
+}
+
+void clearSequences() {
+  clearInputSequence();
+  clearGeneratedSequence();
+}
+
+void displayGeneratedSequence()
 {
   for (int i = 0; i < generatedSequenceLength; i++)
   {
     int pos = generatedSequence[i];
-    ledOn(pos);
-    delay(500);
 
-    ledOff(pos);
+    setFlashOnTime(500);
+    flashLed(pos);
+
     delay(200);
   }
 }
@@ -126,35 +136,45 @@ void levelUp()
   debug.printf("Level Up!. New Level: %i\n", level);
 }
 
-void onSuccess()
+void onSuccessSimon()
 {
+  // add a slight delay before displaying
+  delay(500);
+
   // display flash sequence
-  flashLed(1000);
+  setFlashOnTime(1000);
+  flashLed();
 
   // increase level
-  level++;
-  debug.printf("Level Up!. New Level: %i\n", level);
+  levelUp();
 
   // add a random position
-  addToSequence();
+  addToGeneratedSequence();
+
+  // clear input
+  clearInputSequence();
 
   // stop scanning buttons
   shouldScanButtons = false;
 }
 
-void onFailure()
+void onFailureSimon()
 {
+  delay(500);
+  
   // display flash sequence
-  flashLed(475);
+  setFlashOnTime(475);
+  flashLed();
   delay(50);
-  flashLed(475);
+  flashLed();
 
   // reset level
   level = 1;
   debug.printf("You Lost!\n");
 
-  // clear sequence
-  clearSequence();
+  // clear sequences
+  clearGeneratedSequence();
+  clearInputSequence();
 
   // stop scanning buttons
   shouldScanButtons = false;
@@ -165,9 +185,9 @@ void onFailure()
 
 void onTimeout()
 {
-  debug.printf("Sorry, you timed out!");
-  delay(500);
-  onFailure();
+  debug.printf("Sorry, you timed out!\n");
+  delay(1000);
+  onFailureSimon();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -198,15 +218,16 @@ void onPressSimon()
 {
   // Check if user enters the exact sequence that was described
   int inputSequencePos = inputSequenceLength - 1;
+  debug.printf("Input pos: %i, Input seq: %i, Generated seq: %i\n", inputSequencePos, inputSequence[inputSequencePos], generatedSequence[inputSequencePos]);
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
   {
-    onFailure();
+    return onFailureSimon();
   }
 
   // Check if the last sequence has been entered
-  if (inputSequenceLength == generatedSequenceLength)
+  else if (inputSequenceLength == generatedSequenceLength)
   {
-    onSuccess();
+    return onSuccessSimon();
   }
 }
 
@@ -222,7 +243,6 @@ void getButtonInput(F onPress, F onTimeout)
         return millis() - buttonTimeoutTimer > buttonTimeout;
       }};
 
-  debug.printf("Did timeout? %i\n", (bool)buttonDidTimeout());
   while (!buttonDidTimeout() && shouldScanButtons)
   {
     for (int i = 0; i < NUM_PADS; i++)
@@ -243,6 +263,7 @@ void getButtonInput(F onPress, F onTimeout)
           buttonTimeoutTimer = millis();
 
           // Flash LED on
+          setFlashOnTime(200);
           flashLed(i);
 
           // update input sequence
@@ -282,7 +303,7 @@ void getButtonInput(F onPress, F onTimeout)
 
 void simonLoop()
 {
-  addToSequence(4); // start with 4 blinks
+  addToGeneratedSequence(4); // start with 4 blinks
 
   simonRunning = true;
   while (simonRunning)
@@ -292,9 +313,11 @@ void simonLoop()
     // pause before each level
     delay(3 * 1000);
 
-    displaySequence();
+    displayGeneratedSequence();
     getButtonInput(onPressSimon, onTimeout);
   }
+
+  debug.printf("===========================\n\n");
 }
 
 void setup()
