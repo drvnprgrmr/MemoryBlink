@@ -1,3 +1,37 @@
+/* -------------------------------------------------------------------------- */
+/*                                 MemoryBlink                                */
+/* -------------------------------------------------------------------------- */
+
+/** NOTES TO ME
+ * - No wifi features
+ * - No mixing and matching of modes (10 simon, 20 reverse, e.t.c.)
+ */
+
+/* ----------------------------- Screen Version ----------------------------- */
+/** GAMEPLAY
+ * - At initial boot up, there are two options: choose game mode, change settings
+ * - After choosing a game mode, you'll be asked to choose the player (every player has their high scores for that game mode by the side; also, at the end of the list there'll be an option to add an extra player  up to 100 (might be extended to the max available based on memory after every other feature's been implemented))
+ * - Every player plays a full turn and must end before another player can play.
+ * - The game runs on until you lose or get to the end at 100 steps per sequence (unlikely though :) ).
+ * - Your level is updated on a screen/segment display after each level.
+ * - The game is by default color agnostic. You can swap colors (physically replace LEDs) or use a RGB led (must be set in the settings) and set the colors in the settings. [COMES LATER]
+ */
+
+/** SETTINGS
+ * - time increase [=fixed, decreasing to limit] (50ms increments)
+ * - play sounds
+ * - tones for each key (from predefined tone list)
+ *
+ * > Player settings
+ * - reset high score for player
+ * - add player
+ */
+
+/* ------------------------- Segment Display Version ------------------------ */
+/** GAMEPLAY
+ * - tbd
+ */
+
 #include <Arduino.h>
 #include <Bonezegei_Printf.h>
 
@@ -112,7 +146,8 @@ void clearInputSequence()
   inputSequenceLength = 0;
 }
 
-void clearSequences() {
+void clearSequences()
+{
   clearInputSequence();
   clearGeneratedSequence();
 }
@@ -161,7 +196,7 @@ void onSuccessSimon()
 void onFailureSimon()
 {
   delay(500);
-  
+
   // display flash sequence
   setFlashOnTime(475);
   flashLed();
