@@ -1,13 +1,46 @@
 #include <Arduino.h>
 #include <Bonezegei_Printf.h>
+#include "buzzer.h"
 
 #define NUM_PADS 4
 #define MAX_SEQUENCE 100
 
 Bonezegei_Printf debug(&Serial);
 
-constexpr int ledPins[NUM_PADS] = {2, 3, 4, 5};
-constexpr int buttonPins[NUM_PADS] = {6, 7, 8, 9};
+constexpr int ledPins[NUM_PADS]{2, 3, 4, 5};
+constexpr int buttonPins[NUM_PADS]{6, 7, 8, 9};
+Buzzer buzzer{10};
+constexpr Note padNotes[NUM_PADS]{Note::NOTE_E4, Note::NOTE_CS4, Note::NOTE_A4, Note::NOTE_E3};
+
+int level = 1;
+
+bool simonRunning = false;
+
+uint32_t buttonTimeout = 5UL * 1000UL; // 5s per button input
+uint32_t buttonTimeoutTimer = millis();
+bool shouldScanButtons = true;
+
+int generatedSequence[MAX_SEQUENCE]{};
+int generatedSequenceLength = 0;
+
+int inputSequence[MAX_SEQUENCE]{};
+int inputSequenceLength = 0;
+
+const MelodyStep successMelody[] = {
+    {Note::NOTE_C5, 100}, // Start mid
+    {Note::NOTE_E5, 100}, // Up
+    {Note::NOTE_G5, 100}, // Up
+    {Note::NOTE_C6, 250}  // High note, held longer
+};
+const int successLen = sizeof(successMelody) / sizeof(successMelody[0]);
+
+const MelodyStep failureMelody[] = {
+    {Note::NOTE_G3, 300},  // Start low
+    {Note::NOTE_FS3, 300}, // Down a semi-tone
+    {Note::NOTE_F3, 300},  // Down a semi-tone
+    {Note::NOTE_E3, 600}   // End on a long, low note
+};
+const int failureLen = sizeof(failureMelody) / sizeof(failureMelody[0]);
 
 // A helper function that does nothing but enforce types
 void enforceHelper(void (*f)(int)) {}
@@ -26,27 +59,9 @@ void loopPads(F op)
 
 /* -------------------------------------------------------------------------- */
 
-int level = 1;
-
-bool simonRunning = false;
-
-uint32_t buttonTimeout = 5UL * 1000UL; // 5s per button input
-uint32_t buttonTimeoutTimer = millis();
-bool shouldScanButtons = true;
-
-int generatedSequence[MAX_SEQUENCE]{};
-int generatedSequenceLength = 0;
-
-int inputSequence[MAX_SEQUENCE]{};
-int inputSequenceLength = 0;
-
-/* -------------------------------------------------------------------------- */
-/*                                LED Functions                               */
-/* -------------------------------------------------------------------------- */
-
-void ledOn(int ledPos)
+void ledOn(int pos)
 {
-  digitalWrite(ledPins[ledPos], 1);
+  digitalWrite(ledPins[pos], 1);
 }
 
 void ledOn()
@@ -55,9 +70,9 @@ void ledOn()
            { ledOn(i); });
 }
 
-void ledOff(int ledPos)
+void ledOff(int pos)
 {
-  digitalWrite(ledPins[ledPos], 0);
+  digitalWrite(ledPins[pos], 0);
 }
 
 void ledOff()
@@ -79,12 +94,26 @@ void flashLed()
   ledOff();
 }
 
-void flashLed(int ledPos)
+void flashLed(int pos)
 {
-  ledOn(ledPos);
+  ledOn(pos);
   delay(flashOnTime);
-  ledOff(ledPos);
+  ledOff(pos);
 }
+
+void padOn(int pos)
+{
+  ledOn(pos);
+  buzzer.play(padNotes[pos]);
+}
+
+void padOff(int pos)
+{
+  ledOff(pos);
+  buzzer.stop();
+}
+
+/* -------------------------------------------------------------------------- */
 
 void addToGeneratedSequence()
 {
@@ -125,11 +154,16 @@ void displayGeneratedSequence()
     int pos = generatedSequence[i];
 
     setFlashOnTime(500);
-    flashLed(pos);
+
+    padOn(pos);
+    delay(500);
+    padOff(pos);
 
     delay(200);
   }
 }
+
+/* -------------------------------------------------------------------------- */
 
 void levelUp()
 {
@@ -142,9 +176,8 @@ void onSuccessSimon()
   // add a slight delay before displaying
   delay(500);
 
-  // display flash sequence
-  setFlashOnTime(1000);
-  flashLed();
+  // play success melody
+  buzzer.playMelody(successMelody, successLen);
 
   // increase level
   levelUp();
@@ -163,11 +196,8 @@ void onFailureSimon()
 {
   delay(500);
 
-  // display flash sequence
-  setFlashOnTime(475);
-  flashLed();
-  delay(50);
-  flashLed();
+  // play success melody
+  buzzer.playMelody(failureMelody, failureLen);
 
   // reset level
   level = 1;
@@ -219,7 +249,6 @@ void onPressSimon()
 {
   // Check if user enters the exact sequence that was described
   int inputSequencePos = inputSequenceLength - 1;
-  debug.printf("Input pos: %i, Input seq: %i, Generated seq: %i\n", inputSequencePos, inputSequence[inputSequencePos], generatedSequence[inputSequencePos]);
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
   {
     return onFailureSimon();
@@ -263,9 +292,10 @@ void getButtonInput(F onPress, F onTimeout)
           // Reset timeout timer
           buttonTimeoutTimer = millis();
 
-          // Flash LED on
-          setFlashOnTime(200);
-          flashLed(i);
+          // blink pad
+          padOn(i);
+          delay(200);
+          padOff(i);
 
           // update input sequence
           inputSequence[inputSequenceLength++] = i;
@@ -326,7 +356,6 @@ void setup()
   Serial.begin(9600);
 
   Serial.println("MemoryBlink starting up!");
-  debug.printf("Just checking...\n");
 
   // Initialize pins
   for (int i = 0; i < NUM_PADS; i++)
@@ -340,13 +369,15 @@ void setup()
   randomSeed(analogRead(A0));
 
   // Startup blink
-  for (int i = 0; i < NUM_PADS; i++)
-  {
-    ledOn();
-    delay(300);
-    ledOff();
-    delay(300);
-  }
+  ledOn();
+  buzzer.play(Note::NOTE_B0);
+
+  delay(1000);
+
+  ledOff();
+  buzzer.stop();
+  
+  delay(1000);
 }
 
 void loop()
