@@ -7,24 +7,11 @@
 
 Bonezegei_Printf debug(&Serial);
 
-constexpr int ledPins[NUM_PADS]{2, 3, 4, 5};
-constexpr int buttonPins[NUM_PADS]{6, 7, 8, 9};
-Buzzer buzzer{10};
+constexpr uint8_t ledPins[NUM_PADS]{2, 3, 4, 5};
+constexpr uint8_t buttonPins[NUM_PADS]{6, 7, 8, 9};
+constexpr uint8_t buzzerPin = 10;
+
 constexpr Note padNotes[NUM_PADS]{Note::NOTE_E4, Note::NOTE_CS4, Note::NOTE_A4, Note::NOTE_E3};
-
-int level = 1;
-
-bool simonRunning = false;
-
-uint32_t buttonTimeout = 5UL * 1000UL; // 5s per button input
-uint32_t buttonTimeoutTimer = millis();
-bool shouldScanButtons = true;
-
-int generatedSequence[MAX_SEQUENCE]{};
-int generatedSequenceLength = 0;
-
-int inputSequence[MAX_SEQUENCE]{};
-int inputSequenceLength = 0;
 
 const MelodyStep successMelody[] = {
     {Note::NOTE_C5, 100}, // Start mid
@@ -42,190 +29,7 @@ const MelodyStep failureMelody[] = {
 };
 const int failureLen = sizeof(failureMelody) / sizeof(failureMelody[0]);
 
-// A helper function that does nothing but enforce types
-void enforceHelper(void (*f)(int)) {}
-
-template <typename F>
-void loopPads(F op)
-{
-  if (false)
-    enforceHelper(op);
-
-  for (int i = 0; i < NUM_PADS; i++)
-  {
-    op(i);
-  }
-}
-
 /* -------------------------------------------------------------------------- */
-
-void ledOn(int pos)
-{
-  digitalWrite(ledPins[pos], 1);
-}
-
-void ledOn()
-{
-  loopPads([](int i)
-           { ledOn(i); });
-}
-
-void ledOff(int pos)
-{
-  digitalWrite(ledPins[pos], 0);
-}
-
-void ledOff()
-{
-  loopPads([](int i)
-           { ledOff(i); });
-}
-
-int flashOnTime = 0;
-void setFlashOnTime(int onTime)
-{
-  flashOnTime = onTime;
-}
-
-void flashLed()
-{
-  ledOn();
-  delay(flashOnTime);
-  ledOff();
-}
-
-void flashLed(int pos)
-{
-  ledOn(pos);
-  delay(flashOnTime);
-  ledOff(pos);
-}
-
-void padOn(int pos)
-{
-  ledOn(pos);
-  buzzer.play(padNotes[pos]);
-}
-
-void padOff(int pos)
-{
-  ledOff(pos);
-  buzzer.stop();
-}
-
-/* -------------------------------------------------------------------------- */
-
-void addToGeneratedSequence()
-{
-  generatedSequence[generatedSequenceLength++] = random(NUM_PADS);
-}
-
-void addToGeneratedSequence(int count)
-{
-  if (generatedSequenceLength < MAX_SEQUENCE)
-  {
-    for (int i = 0; i < count; i++)
-    {
-      addToGeneratedSequence();
-    }
-  }
-}
-
-void clearGeneratedSequence()
-{
-  generatedSequenceLength = 0;
-}
-
-void clearInputSequence()
-{
-  inputSequenceLength = 0;
-}
-
-void clearSequences()
-{
-  clearInputSequence();
-  clearGeneratedSequence();
-}
-
-void displayGeneratedSequence()
-{
-  for (int i = 0; i < generatedSequenceLength; i++)
-  {
-    int pos = generatedSequence[i];
-
-    setFlashOnTime(500);
-
-    padOn(pos);
-    delay(500);
-    padOff(pos);
-
-    delay(200);
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-
-void levelUp()
-{
-  level++;
-  debug.printf("Level Up!. New Level: %i\n", level);
-}
-
-void onSuccessSimon()
-{
-  // add a slight delay before displaying
-  delay(500);
-
-  // play success melody
-  buzzer.playMelody(successMelody, successLen);
-
-  // increase level
-  levelUp();
-
-  // add a random position
-  addToGeneratedSequence();
-
-  // clear input
-  clearInputSequence();
-
-  // stop scanning buttons
-  shouldScanButtons = false;
-}
-
-void onFailureSimon()
-{
-  delay(500);
-
-  // play success melody
-  buzzer.playMelody(failureMelody, failureLen);
-
-  // reset level
-  level = 1;
-  debug.printf("You Lost!\n");
-
-  // clear sequences
-  clearGeneratedSequence();
-  clearInputSequence();
-
-  // stop scanning buttons
-  shouldScanButtons = false;
-
-  // end simon game
-  simonRunning = false;
-}
-
-void onTimeout()
-{
-  debug.printf("Sorry, you timed out!\n");
-  delay(1000);
-  onFailureSimon();
-}
-
-/* -------------------------------------------------------------------------- */
-/*                              Button Functions                              */
-/* -------------------------------------------------------------------------- */
-uint32_t debounceTime = 300;
-uint32_t holdTime = 2 * 1000;
 
 enum class ButtonState
 {
@@ -241,36 +45,221 @@ struct Button
   uint32_t holdTimer{0};
 };
 
-// initialize buttons
-Button buttons[NUM_PADS]{};
+/* -------------------------------------------------------------------------- */
 
-// Classic Simon game
-void onPressSimon()
+enum class LevelEnd
 {
-  // Check if user enters the exact sequence that was described
-  int inputSequencePos = inputSequenceLength - 1;
-  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+  PASS,
+  MISS,
+  TIMEOUT,
+};
+
+enum class GameMode
+{
+  CLASSIC,
+  REVERSE,
+  SHUFFLE,
+};
+
+class MemoryBlink
+{
+
+private:
+  Buzzer buzzer;
+  Button buttons[NUM_PADS]{};
+
+  int level{1};
+
+  int generatedSequence[MAX_SEQUENCE]{};
+  int generatedSequenceLength = 0;
+
+  int inputSequence[MAX_SEQUENCE]{};
+  int inputSequenceLength = 0;
+
+  bool gameRunning = false;
+
+  bool shouldScanButtons{false};
+
+  uint32_t debounceTime{300}, holdTime{2 * 1000};
+  uint32_t scanTimer{0}, scanTimeout{5 * 1000};
+
+  // Game mode generic handlers
+  using GameModeOnPressHandler = void (MemoryBlink::*)();
+  using GameModeOnTimeoutHandler = void (MemoryBlink::*)();
+  using GameModeSetup = void (MemoryBlink::*)();
+
+private:
+  void ledOn(int pos);
+  void ledOn();
+  void ledOff(int pos);
+  void ledOff();
+  void padOn(int pos);
+  void padOff(int pos);
+
+private:
+  void addToGeneratedSequence();
+  void addToGeneratedSequence(int count);
+  void displayGeneratedSequence();
+  void clearGeneratedSequence();
+  void clearInputSequence();
+
+private:
+  void levelUp();
+  void getButtonInput(GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout);
+  void gameLoop(GameModeSetup _setup, GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout);
+
+private:
+  void onSuccessSimon();
+  void onFailureSimon();
+  void onTimeoutSimon();
+  void setupSimon();
+  void onPressSimon();
+
+public:
+  MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin);
+  ~MemoryBlink();
+
+public:
+  void gameLoop(GameMode mode);
+};
+
+MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
+    : buzzer(buzzerPin)
+{
+  // Initialize pins
+  for (int i = 0; i < NUM_PADS; i++)
   {
-    return onFailureSimon();
+    pinMode(ledPins[i], OUTPUT);
+    digitalWrite(ledPins[i], LOW);
+    pinMode(buttonPins[i], INPUT_PULLUP);
   }
 
-  // Check if the last sequence has been entered
-  else if (inputSequenceLength == generatedSequenceLength)
+  // Initialize buzzer
+  Buzzer buzzer{buzzerPin};
+
+  // Seed RNG (if A0 is floating it helps vary the sequence)
+  randomSeed(analogRead(A0));
+
+  // Startup blink
+  ledOn();
+  buzzer.play(Note::NOTE_B0);
+
+  delay(1000);
+
+  ledOff();
+  buzzer.stop();
+
+  delay(1000);
+}
+
+MemoryBlink::~MemoryBlink()
+{
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   OUTPUTS                                  */
+/* -------------------------------------------------------------------------- */
+
+void MemoryBlink::ledOn(int pos)
+{
+  digitalWrite(ledPins[pos], 1);
+}
+
+void MemoryBlink::ledOn()
+{
+  for (int i = 0; i < NUM_PADS; i++)
   {
-    return onSuccessSimon();
+    ledOn(i);
   }
 }
 
-template <typename F>
-void getButtonInput(F onPress, F onTimeout)
+void MemoryBlink::ledOff(int pos)
+{
+  digitalWrite(ledPins[pos], 0);
+}
+
+void MemoryBlink::ledOff()
+{
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    ledOff(i);
+  }
+}
+
+void MemoryBlink::padOn(int pos)
+{
+  ledOn(pos);
+  buzzer.play(padNotes[pos]);
+}
+
+void MemoryBlink::padOff(int pos)
+{
+  ledOff(pos);
+  buzzer.stop();
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  SEQUENCES                                 */
+/* -------------------------------------------------------------------------- */
+
+void MemoryBlink::addToGeneratedSequence()
+{
+  generatedSequence[generatedSequenceLength++] = random(NUM_PADS);
+}
+
+void MemoryBlink::addToGeneratedSequence(int count)
+{
+  if (generatedSequenceLength < MAX_SEQUENCE)
+  {
+    for (int i = 0; i < count; i++)
+    {
+      addToGeneratedSequence();
+    }
+  }
+}
+
+void MemoryBlink::displayGeneratedSequence()
+
+{
+  for (int i = 0; i < generatedSequenceLength; i++)
+  {
+    int pos = generatedSequence[i];
+
+    padOn(pos);
+    delay(500);
+    padOff(pos);
+
+    delay(200);
+  }
+}
+
+void MemoryBlink::clearGeneratedSequence()
+{
+  generatedSequenceLength = 0;
+}
+
+void MemoryBlink::clearInputSequence()
+{
+  inputSequenceLength = 0;
+}
+
+/* -------------------------------------------------------------------------- */
+
+void MemoryBlink::levelUp()
+{
+  level++;
+  debug.printf("Level Up!. New Level: %i\n", level);
+}
+
+void MemoryBlink::getButtonInput(GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout)
 {
   shouldScanButtons = true;
-  buttonTimeoutTimer = millis();
+  scanTimer = millis();
 
-  auto buttonDidTimeout{
-      []() -> bool
+  static auto buttonDidTimeout{
+      [this]() -> bool
       {
-        return millis() - buttonTimeoutTimer > buttonTimeout;
+        return millis() - scanTimer > scanTimeout;
       }};
 
   while (!buttonDidTimeout() && shouldScanButtons)
@@ -290,7 +279,7 @@ void getButtonInput(F onPress, F onTimeout)
           button.holdTimer = millis();
 
           // Reset timeout timer
-          buttonTimeoutTimer = millis();
+          scanTimer = millis();
 
           // blink pad
           padOn(i);
@@ -301,7 +290,7 @@ void getButtonInput(F onPress, F onTimeout)
           inputSequence[inputSequenceLength++] = i;
 
           // call the passed in function
-          onPress();
+          (onPress != nullptr) ? (this->*onPress)() : debug.printf("WARN: onPress not defined!\n");
         }
 
         else if (button.state == ButtonState::PRESSED &&
@@ -328,16 +317,107 @@ void getButtonInput(F onPress, F onTimeout)
 
   if (buttonDidTimeout())
   {
-    onTimeout();
+    onTimeout != nullptr ? (this->*onTimeout)() : debug.printf("WARN: onTimeout not defined!\n");
   }
 }
 
-void simonLoop()
+/* ----------------------------- Simon Handlers ----------------------------- */
+
+void MemoryBlink::setupSimon()
 {
   addToGeneratedSequence(4); // start with 4 blinks
+}
 
-  simonRunning = true;
-  while (simonRunning)
+void MemoryBlink::onSuccessSimon()
+{
+  // add a slight delay before displaying
+  delay(500);
+
+  // play success melody
+  buzzer.playMelody(successMelody, successLen);
+
+  // increase level
+  levelUp();
+
+  // add a random position
+  addToGeneratedSequence();
+
+  // clear input
+  clearInputSequence();
+
+  // stop scanning buttons
+  shouldScanButtons = false;
+}
+
+void MemoryBlink::onFailureSimon()
+{
+  delay(500);
+
+  // play failure melody
+  buzzer.playMelody(failureMelody, failureLen);
+
+  // reset level
+  level = 1;
+  debug.printf("You Lost!\n");
+
+  // clear sequences
+  clearGeneratedSequence();
+  clearInputSequence();
+
+  // stop scanning buttons
+  shouldScanButtons = false;
+
+  // end simon game
+  gameRunning = false;
+}
+
+void MemoryBlink::onTimeoutSimon()
+{
+  debug.printf("Sorry, you timed out!\n");
+  delay(1000);
+  onFailureSimon();
+}
+
+void MemoryBlink::onPressSimon()
+{
+  // Check if user enters the exact sequence that was described
+  int inputSequencePos = inputSequenceLength - 1;
+  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+  {
+    return onFailureSimon();
+  }
+
+  // Check if the last sequence has been entered
+  else if (inputSequenceLength == generatedSequenceLength)
+  {
+    return onSuccessSimon();
+  }
+}
+
+void MemoryBlink::gameLoop(GameMode mode)
+{
+  switch (mode)
+  {
+
+  case GameMode::CLASSIC:
+  {
+    // start the classic simon game mode
+    gameLoop(&MemoryBlink::setupSimon, &MemoryBlink::onPressSimon, &MemoryBlink::onTimeoutSimon);
+
+    break;
+  }
+
+  default:
+    break;
+  }
+}
+
+void MemoryBlink::gameLoop(GameModeSetup _setup, GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout)
+{
+  (this->*_setup)();
+
+  gameRunning = true;
+  while (gameRunning)
   {
     debug.printf("Starting level %i\n", level);
 
@@ -345,7 +425,7 @@ void simonLoop()
     delay(3 * 1000);
 
     displayGeneratedSequence();
-    getButtonInput(onPressSimon, onTimeout);
+    getButtonInput(onPress, onTimeout);
   }
 
   debug.printf("===========================\n\n");
@@ -354,33 +434,12 @@ void simonLoop()
 void setup()
 {
   Serial.begin(9600);
-
   Serial.println("MemoryBlink starting up!");
-
-  // Initialize pins
-  for (int i = 0; i < NUM_PADS; i++)
-  {
-    pinMode(ledPins[i], OUTPUT);
-    digitalWrite(ledPins[i], LOW);
-    pinMode(buttonPins[i], INPUT_PULLUP);
-  }
-
-  // Seed RNG (if A0 is floating it helps vary the sequence)
-  randomSeed(analogRead(A0));
-
-  // Startup blink
-  ledOn();
-  buzzer.play(Note::NOTE_B0);
-
-  delay(1000);
-
-  ledOff();
-  buzzer.stop();
-  
-  delay(1000);
 }
 
 void loop()
 {
-  simonLoop();
+  MemoryBlink game{ledPins, buttonPins, buzzerPin};
+
+  game.gameLoop(GameMode::CLASSIC);
 }
