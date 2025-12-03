@@ -1,0 +1,310 @@
+#include "MemoryBlink.h"
+
+Bonezegei_Printf debug(&Serial);
+
+MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
+    : ledPins(ledPins), buttonPins(buttonPins), buzzer(buzzerPin)
+{
+  // Initialize pins
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    pinMode(ledPins[i], OUTPUT);
+    digitalWrite(ledPins[i], LOW);
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+
+  // Initialize buzzer
+  Buzzer buzzer{buzzerPin};
+
+  // Seed RNG (if A0 is floating it helps vary the sequence)
+  randomSeed(analogRead(A0));
+
+  // Startup blink
+  ledOn();
+  buzzer.play(Note::NOTE_B0);
+
+  delay(1000);
+
+  ledOff();
+  buzzer.stop();
+
+  delay(1000);
+}
+
+MemoryBlink::~MemoryBlink()
+{
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                   OUTPUTS                                  */
+/* -------------------------------------------------------------------------- */
+
+void MemoryBlink::ledOn(int pos)
+{
+  digitalWrite(ledPins[pos], 1);
+}
+
+void MemoryBlink::ledOn()
+{
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    ledOn(i);
+  }
+}
+
+void MemoryBlink::ledOff(int pos)
+{
+  digitalWrite(ledPins[pos], 0);
+}
+
+void MemoryBlink::ledOff()
+{
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    ledOff(i);
+  }
+}
+
+void MemoryBlink::padOn(int pos)
+{
+  ledOn(pos);
+  buzzer.play(padNotes[pos]);
+}
+
+void MemoryBlink::padOff(int pos)
+{
+  ledOff(pos);
+  buzzer.stop();
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                  SEQUENCES                                 */
+/* -------------------------------------------------------------------------- */
+
+void MemoryBlink::addToGeneratedSequence()
+{
+  generatedSequence[generatedSequenceLength++] = random(NUM_PADS);
+}
+
+void MemoryBlink::addToGeneratedSequence(int count)
+{
+  if (generatedSequenceLength < MAX_SEQUENCE)
+  {
+    for (int i = 0; i < count; i++)
+    {
+      addToGeneratedSequence();
+    }
+  }
+}
+
+void MemoryBlink::displayGeneratedSequence()
+
+{
+  for (int i = 0; i < generatedSequenceLength; i++)
+  {
+    int pos = generatedSequence[i];
+
+    padOn(pos);
+    delay(500);
+    padOff(pos);
+
+    delay(200);
+  }
+}
+
+void MemoryBlink::clearGeneratedSequence()
+{
+  generatedSequenceLength = 0;
+}
+
+void MemoryBlink::clearInputSequence()
+{
+  inputSequenceLength = 0;
+}
+
+/* -------------------------------------------------------------------------- */
+
+void MemoryBlink::levelUp()
+{
+  level++;
+  debug.printf("Level Up!. New Level: %i\n", level);
+}
+
+void MemoryBlink::getButtonInput(GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout)
+{
+  shouldScanButtons = true;
+  scanTimer = millis();
+
+  static auto buttonDidTimeout{
+      [this]() -> bool
+      {
+        return millis() - scanTimer > scanTimeout;
+      }};
+
+  while (!buttonDidTimeout() && shouldScanButtons)
+  {
+    for (int i = 0; i < NUM_PADS; i++)
+    {
+      int level = digitalRead(buttonPins[i]);
+      Button &button = buttons[i];
+
+      if (level == 0) // i.e. button has been pulled down
+      {
+        if ((button.state == ButtonState::IDLE || button.state == ButtonState::RELEASED) &&
+            (millis() - button.holdTimer > debounceTime))
+        {
+          button.state = ButtonState::PRESSED;
+          button.holdTimer = millis();
+
+          // Reset timeout timer
+          scanTimer = millis();
+
+          // blink pad
+          padOn(i);
+          delay(200);
+          padOff(i);
+
+          // update input sequence
+          inputSequence[inputSequenceLength++] = i;
+
+          // call the passed in function
+          (onPress != nullptr) ? (this->*onPress)() : debug.printf("WARN: onPress not defined!\n");
+        }
+
+        else if (button.state == ButtonState::PRESSED &&
+                 (millis() - button.holdTimer > holdTime))
+        {
+          button.state = ButtonState::HELD;
+
+          debug.printf("Button held: %i\n", i);
+        }
+      }
+      else
+      {
+        if (button.state == ButtonState::PRESSED || button.state == ButtonState::HELD)
+        {
+          button.state = ButtonState::RELEASED;
+        }
+        else if (button.state == ButtonState::RELEASED)
+        {
+          button.state = ButtonState::IDLE;
+        }
+      }
+    }
+  }
+
+  if (buttonDidTimeout())
+  {
+    onTimeout != nullptr ? (this->*onTimeout)() : debug.printf("WARN: onTimeout not defined!\n");
+  }
+}
+
+/* ----------------------------- Simon Handlers ----------------------------- */
+
+void MemoryBlink::setupSimon()
+{
+  addToGeneratedSequence(4); // start with 4 blinks
+}
+
+void MemoryBlink::onSuccessSimon()
+{
+  // add a slight delay before displaying
+  delay(500);
+
+  // play success melody
+  buzzer.playMelody(successMelody, successLen);
+
+  // increase level
+  levelUp();
+
+  // add a random position
+  addToGeneratedSequence();
+
+  // clear input
+  clearInputSequence();
+
+  // stop scanning buttons
+  shouldScanButtons = false;
+}
+
+void MemoryBlink::onFailureSimon()
+{
+  delay(500);
+
+  // play failure melody
+  buzzer.playMelody(failureMelody, failureLen);
+
+  // reset level
+  level = 1;
+  debug.printf("You Lost!\n");
+
+  // clear sequences
+  clearGeneratedSequence();
+  clearInputSequence();
+
+  // stop scanning buttons
+  shouldScanButtons = false;
+
+  // end simon game
+  gameRunning = false;
+}
+
+void MemoryBlink::onTimeoutSimon()
+{
+  debug.printf("Sorry, you timed out!\n");
+  delay(1000);
+  onFailureSimon();
+}
+
+void MemoryBlink::onPressSimon()
+{
+  // Check if user enters the exact sequence that was described
+  int inputSequencePos = inputSequenceLength - 1;
+  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+  {
+    return onFailureSimon();
+  }
+
+  // Check if the last sequence has been entered
+  else if (inputSequenceLength == generatedSequenceLength)
+  {
+    return onSuccessSimon();
+  }
+}
+
+void MemoryBlink::gameLoop(GameMode mode)
+{
+  switch (mode)
+  {
+
+  case GameMode::CLASSIC:
+  {
+    // start the classic simon game mode
+    gameLoop(&MemoryBlink::setupSimon, &MemoryBlink::onPressSimon, &MemoryBlink::onTimeoutSimon);
+
+    break;
+  }
+
+  default:
+    break;
+  }
+}
+
+void MemoryBlink::gameLoop(GameModeSetup _setup, GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout)
+{
+  (this->*_setup)();
+
+  gameRunning = true;
+  while (gameRunning)
+  {
+    debug.printf("Starting level %i\n", level);
+
+    // pause before each level
+    delay(3 * 1000);
+
+    displayGeneratedSequence();
+    getButtonInput(onPress, onTimeout);
+  }
+
+  debug.printf("===========================\n\n");
+}
