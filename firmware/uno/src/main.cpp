@@ -15,5 +15,7 @@ void loop()
 {
   MemoryBlink game{ledPins, buttonPins, buzzerPin};
 
-  game.gameLoop(GameMode::CLASSIC);
+  game.startGame(GameMode::CLASSIC);
+
+  game.startGame(GameMode::SHUFFLE);
 }

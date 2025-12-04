@@ -123,14 +123,60 @@ void MemoryBlink::clearInputSequence()
 }
 
 /* -------------------------------------------------------------------------- */
+/*                                  GAMEPLAY                                  */
+/* -------------------------------------------------------------------------- */
 
 void MemoryBlink::levelUp()
 {
+  // add delay before
+  delay(1000);
+
+  // increase level
   level++;
-  debug.printf("Level Up!. New Level: %i\n", level);
+  debug.printf("Level up: %i\n", level);
+
+  // play success melody
+  buzzer.playMelody(successMelody, successLen);
+
+  // clear input sequence
+  clearInputSequence();
+
+  // stop scanning buttons
+  shouldScanButtons = false;
+
+  // add delay after
+  delay(1000);
 }
 
-void MemoryBlink::getButtonInput(GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout)
+void MemoryBlink::endGame()
+{
+  // add delay before
+  delay(1000);
+
+  // todo: save high score
+
+  // reset level
+  level = 0;
+  debug.printf("You Lost!\n");
+
+  // play failure melody
+  buzzer.playMelody(failureMelody, failureLen);
+
+  // clear both sequences
+  clearInputSequence();
+  clearGeneratedSequence();
+
+  // stop scanning buttons
+  shouldScanButtons = false;
+
+  // end current game
+  gameRunning = false;
+
+  // add delay after
+  delay(1000);
+}
+
+void MemoryBlink::getButtonInput(GameModeHandler onPress)
 {
   shouldScanButtons = true;
   scanTimer = millis();
@@ -195,93 +241,26 @@ void MemoryBlink::getButtonInput(GameModeOnPressHandler onPress, GameModeOnTimeo
 
   if (buttonDidTimeout())
   {
-    onTimeout != nullptr ? (this->*onTimeout)() : debug.printf("WARN: onTimeout not defined!\n");
+    debug.printf("Sorry, you timed out!\n");
+    delay(1000);
+    endGame();
   }
 }
 
-/* ----------------------------- Simon Handlers ----------------------------- */
-
-void MemoryBlink::setupSimon()
-{
-  addToGeneratedSequence(4); // start with 4 blinks
-}
-
-void MemoryBlink::onSuccessSimon()
-{
-  // add a slight delay before displaying
-  delay(500);
-
-  // play success melody
-  buzzer.playMelody(successMelody, successLen);
-
-  // increase level
-  levelUp();
-
-  // add a random position
-  addToGeneratedSequence();
-
-  // clear input
-  clearInputSequence();
-
-  // stop scanning buttons
-  shouldScanButtons = false;
-}
-
-void MemoryBlink::onFailureSimon()
-{
-  delay(500);
-
-  // play failure melody
-  buzzer.playMelody(failureMelody, failureLen);
-
-  // reset level
-  level = 1;
-  debug.printf("You Lost!\n");
-
-  // clear sequences
-  clearGeneratedSequence();
-  clearInputSequence();
-
-  // stop scanning buttons
-  shouldScanButtons = false;
-
-  // end simon game
-  gameRunning = false;
-}
-
-void MemoryBlink::onTimeoutSimon()
-{
-  debug.printf("Sorry, you timed out!\n");
-  delay(1000);
-  onFailureSimon();
-}
-
-void MemoryBlink::onPressSimon()
-{
-  // Check if user enters the exact sequence that was described
-  int inputSequencePos = inputSequenceLength - 1;
-  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
-  {
-    return onFailureSimon();
-  }
-
-  // Check if the last sequence has been entered
-  else if (inputSequenceLength == generatedSequenceLength)
-  {
-    return onSuccessSimon();
-  }
-}
-
-void MemoryBlink::gameLoop(GameMode mode)
+void MemoryBlink::startGame(GameMode mode)
 {
   switch (mode)
   {
 
   case GameMode::CLASSIC:
   {
-    // start the classic simon game mode
-    gameLoop(&MemoryBlink::setupSimon, &MemoryBlink::onPressSimon, &MemoryBlink::onTimeoutSimon);
+    gameLoop(&MemoryBlink::classicHandler);
+    break;
+  }
 
+  case GameMode::SHUFFLE:
+  {
+    gameLoop(&MemoryBlink::shuffleHandler);
     break;
   }
 
@@ -290,21 +269,70 @@ void MemoryBlink::gameLoop(GameMode mode)
   }
 }
 
-void MemoryBlink::gameLoop(GameModeSetup _setup, GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout)
+void MemoryBlink::gameLoop(GameModeHandler onPress)
 {
-  (this->*_setup)();
+  // start game with a sequence equal to the number of pads to avoid trivial levels
+  addToGeneratedSequence(NUM_PADS);
+
+  debug.printf("Start ===========================\n");
 
   gameRunning = true;
   while (gameRunning)
   {
-    debug.printf("Starting level %i\n", level);
-
-    // pause before each level
-    delay(3 * 1000);
-
+    // display sequence
     displayGeneratedSequence();
-    getButtonInput(onPress, onTimeout);
+
+    // get user input
+    getButtonInput(onPress);
   }
 
-  debug.printf("===========================\n\n");
+  debug.printf("End ===========================\n\n\n");
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                 GAME MODES                                 */
+/* -------------------------------------------------------------------------- */
+
+// Classic mode handler
+void MemoryBlink::classicHandler()
+{
+  // Check if user enters the exact sequence that was described
+  int inputSequencePos = inputSequenceLength - 1;
+  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+  {
+    return endGame();
+  }
+
+  // Check if the last sequence has been entered
+  else if (inputSequenceLength == generatedSequenceLength)
+  {
+    levelUp();
+
+    // add a random position to the generated sequence
+    addToGeneratedSequence();
+  }
+}
+
+// Shuffle mode handler
+void MemoryBlink::shuffleHandler()
+{
+  // Check if user enters the exact sequence that was described
+  int inputSequencePos = inputSequenceLength - 1;
+  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+  {
+    return endGame();
+  }
+
+  // Check if the last sequence has been entered
+  else if (inputSequenceLength == generatedSequenceLength)
+  {
+    // level up the game
+    levelUp();
+
+    // reset the generated sequence
+    clearGeneratedSequence();
+
+    // add new set of random sequence plus offset
+    addToGeneratedSequence(NUM_PADS + level);
+  }
 }

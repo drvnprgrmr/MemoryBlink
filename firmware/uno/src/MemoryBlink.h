@@ -59,7 +59,7 @@ private:
   Buzzer buzzer;
   Button buttons[NUM_PADS]{};
 
-  int level{1};
+  int level{0}; // starts at level 0
 
   int generatedSequence[MAX_SEQUENCE]{};
   int generatedSequenceLength = 0;
@@ -74,10 +74,9 @@ private:
   uint32_t debounceTime{300}, holdTime{2 * 1000};
   uint32_t scanTimer{0}, scanTimeout{5 * 1000};
 
-  // Game mode generic handlers
-  using GameModeOnPressHandler = void (MemoryBlink::*)();
-  using GameModeOnTimeoutHandler = void (MemoryBlink::*)();
-  using GameModeSetup = void (MemoryBlink::*)();
+  // Generic game mode handler type
+  // todo: use concepts for esp32
+  using GameModeHandler = void (MemoryBlink::*)();
 
 private:
   void ledOn(int pos);
@@ -96,20 +95,18 @@ private:
 
 private:
   void levelUp();
-  void getButtonInput(GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout);
-  void gameLoop(GameModeSetup _setup, GameModeOnPressHandler onPress, GameModeOnTimeoutHandler onTimeout);
+  void endGame();
+  void getButtonInput(GameModeHandler onPress);
+  void gameLoop(GameModeHandler onPress);
 
 private:
-  void onSuccessSimon();
-  void onFailureSimon();
-  void onTimeoutSimon();
-  void setupSimon();
-  void onPressSimon();
+  void classicHandler();
+  void shuffleHandler();
 
 public:
   MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin);
   ~MemoryBlink();
 
 public:
-  void gameLoop(GameMode mode);
+  void startGame(GameMode mode);
 };
