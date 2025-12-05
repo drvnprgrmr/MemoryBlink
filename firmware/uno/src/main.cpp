@@ -17,5 +17,9 @@ void loop()
 
   game.startGame(GameMode::CLASSIC);
 
+  game.startGame(GameMode::CLASSIC_REVERSED);
+
   game.startGame(GameMode::SHUFFLE);
+
+  game.startGame(GameMode::SHUFFLE_REVERSED);
 }

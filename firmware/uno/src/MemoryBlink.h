@@ -8,21 +8,21 @@
 
 constexpr Note padNotes[NUM_PADS]{Note::NOTE_E4, Note::NOTE_CS4, Note::NOTE_A4, Note::NOTE_E3};
 
-const MelodyStep successMelody[] = {
+const MelodyStep successMelody[NUM_PADS] = {
     {Note::NOTE_C5, 100}, // Start mid
     {Note::NOTE_E5, 100}, // Up
     {Note::NOTE_G5, 100}, // Up
     {Note::NOTE_C6, 250}  // High note, held longer
 };
-const int successLen = sizeof(successMelody) / sizeof(successMelody[0]);
 
-const MelodyStep failureMelody[] = {
+const MelodyStep failureMelody[NUM_PADS] = {
     {Note::NOTE_G3, 300},  // Start low
     {Note::NOTE_FS3, 300}, // Down a semi-tone
     {Note::NOTE_F3, 300},  // Down a semi-tone
     {Note::NOTE_E3, 600}   // End on a long, low note
 };
-const int failureLen = sizeof(failureMelody) / sizeof(failureMelody[0]);
+
+
 
 /* -------------------------------------------------------------------------- */
 
@@ -45,8 +45,9 @@ struct Button
 enum class GameMode
 {
   CLASSIC,
-  REVERSE,
+  CLASSIC_REVERSED,
   SHUFFLE,
+  SHUFFLE_REVERSED
 };
 
 class MemoryBlink
@@ -96,12 +97,14 @@ private:
 private:
   void levelUp();
   void endGame();
-  void getButtonInput(GameModeHandler onPress);
+  void getInput(GameModeHandler onPress);
   void gameLoop(GameModeHandler onPress);
 
 private:
   void classicHandler();
+  void classicReversedHandler();
   void shuffleHandler();
+  void shuffleReversedHandler();
 
 public:
   MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin);

@@ -136,7 +136,7 @@ void MemoryBlink::levelUp()
   debug.printf("Level up: %i\n", level);
 
   // play success melody
-  buzzer.playMelody(successMelody, successLen);
+  buzzer.playMelody(successMelody, NUM_PADS);
 
   // clear input sequence
   clearInputSequence();
@@ -160,7 +160,7 @@ void MemoryBlink::endGame()
   debug.printf("You Lost!\n");
 
   // play failure melody
-  buzzer.playMelody(failureMelody, failureLen);
+  buzzer.playMelody(failureMelody, NUM_PADS);
 
   // clear both sequences
   clearInputSequence();
@@ -176,7 +176,11 @@ void MemoryBlink::endGame()
   delay(1000);
 }
 
-void MemoryBlink::getButtonInput(GameModeHandler onPress)
+// void MemoryBlink::scanButtons() {
+
+// }
+
+void MemoryBlink::getInput(GameModeHandler handler)
 {
   shouldScanButtons = true;
   scanTimer = millis();
@@ -214,7 +218,7 @@ void MemoryBlink::getButtonInput(GameModeHandler onPress)
           inputSequence[inputSequenceLength++] = i;
 
           // call the passed in function
-          (onPress != nullptr) ? (this->*onPress)() : debug.printf("WARN: onPress not defined!\n");
+          (handler != nullptr) ? (this->*handler)() : debug.printf("WARN: handler not defined!\n");
         }
 
         else if (button.state == ButtonState::PRESSED &&
@@ -258,18 +262,31 @@ void MemoryBlink::startGame(GameMode mode)
     break;
   }
 
+  case GameMode::CLASSIC_REVERSED:
+  {
+    gameLoop(&MemoryBlink::classicReversedHandler);
+    break;
+  }
+
   case GameMode::SHUFFLE:
   {
     gameLoop(&MemoryBlink::shuffleHandler);
     break;
   }
 
+   case GameMode::SHUFFLE_REVERSED:
+  {
+    gameLoop(&MemoryBlink::shuffleReversedHandler);
+    break;
+  }
+
+
   default:
     break;
   }
 }
 
-void MemoryBlink::gameLoop(GameModeHandler onPress)
+void MemoryBlink::gameLoop(GameModeHandler handler)
 {
   // start game with a sequence equal to the number of pads to avoid trivial levels
   addToGeneratedSequence(NUM_PADS);
@@ -283,7 +300,7 @@ void MemoryBlink::gameLoop(GameModeHandler onPress)
     displayGeneratedSequence();
 
     // get user input
-    getButtonInput(onPress);
+    getInput(handler);
   }
 
   debug.printf("End ===========================\n\n\n");
@@ -313,12 +330,56 @@ void MemoryBlink::classicHandler()
   }
 }
 
+// Classic Reversed mode handler
+void MemoryBlink::classicReversedHandler()
+{
+  // Check if user enters the reverse sequence that was described
+  int inputSequencePos = inputSequenceLength - 1;
+  if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
+  {
+    return endGame();
+  }
+
+  // Check if the last sequence has been entered
+  else if (inputSequenceLength == generatedSequenceLength)
+  {
+    levelUp();
+
+    // add a random position to the generated sequence
+    addToGeneratedSequence();
+  }
+}
+
 // Shuffle mode handler
 void MemoryBlink::shuffleHandler()
 {
   // Check if user enters the exact sequence that was described
   int inputSequencePos = inputSequenceLength - 1;
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+  {
+    return endGame();
+  }
+
+  // Check if the last sequence has been entered
+  else if (inputSequenceLength == generatedSequenceLength)
+  {
+    // level up the game
+    levelUp();
+
+    // reset the generated sequence
+    clearGeneratedSequence();
+
+    // add new set of random sequence plus offset
+    addToGeneratedSequence(NUM_PADS + level);
+  }
+}
+
+// Shuffle Reversed mode handler
+void MemoryBlink::shuffleReversedHandler()
+{
+  // Check if user enters the exact sequence that was described
+  int inputSequencePos = inputSequenceLength - 1;
+  if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
   {
     return endGame();
   }
