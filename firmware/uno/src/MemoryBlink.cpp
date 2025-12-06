@@ -142,7 +142,7 @@ void MemoryBlink::levelUp()
   clearInputSequence();
 
   // stop scanning buttons
-  shouldScanButtons = false;
+  shouldGetInput = false;
 
   // add delay after
   delay(1000);
@@ -152,8 +152,6 @@ void MemoryBlink::endGame()
 {
   // add delay before
   delay(1000);
-
-  // todo: save high score
 
   // reset level
   level = 0;
@@ -167,7 +165,7 @@ void MemoryBlink::endGame()
   clearGeneratedSequence();
 
   // stop scanning buttons
-  shouldScanButtons = false;
+  shouldGetInput = false;
 
   // end current game
   gameRunning = false;
@@ -176,78 +174,103 @@ void MemoryBlink::endGame()
   delay(1000);
 }
 
-// void MemoryBlink::scanButtons() {
+void MemoryBlink::scanButtons()
+{
+  // reset updated buttons count
+  updatedButtonsCount = 0;
 
-// }
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    int level = digitalRead(buttonPins[i]);
+    Button *button = &buttons[i];
+
+    bool updated = false;
+
+    if (level == 0) // i.e. button has been pulled down
+    {
+      if ((button->state == ButtonState::RELEASED || button->state == ButtonState::IDLE) &&
+          (millis() - button->holdTimer > debounceTime))
+      {
+        // start hold timer
+        button->holdTimer = millis();
+
+        button->state = ButtonState::PRESSED;
+        updated = true;
+      }
+
+      else if (button->state == ButtonState::PRESSED &&
+               (millis() - button->holdTimer > holdTime))
+      {
+        button->state = ButtonState::HELD;
+        updated = true;
+      }
+    }
+    else
+    {
+      if (button->state == ButtonState::PRESSED || button->state == ButtonState::HELD)
+      {
+        // start idle timer
+        button->idleTimer = millis();
+
+        button->state = ButtonState::RELEASED;
+        updated = true;
+      }
+      else if (button->state == ButtonState::RELEASED &&
+               (millis() - button->idleTimer > idleTime))
+      {
+        button->state = ButtonState::IDLE;
+        updated = true;
+      }
+    }
+
+    // check if a button was updated
+    if (updated)
+    {
+      // add this button to the list of updated buttons
+      updatedButtons[updatedButtonsCount++] = button;
+    }
+  }
+}
 
 void MemoryBlink::getInput(GameModeHandler handler)
 {
-  shouldScanButtons = true;
+  shouldGetInput = true;
   scanTimer = millis();
 
-  static auto buttonDidTimeout{
-      [this]() -> bool
-      {
-        return millis() - scanTimer > scanTimeout;
-      }};
-
-  while (!buttonDidTimeout() && shouldScanButtons)
+  while (shouldGetInput)
   {
-    for (int i = 0; i < NUM_PADS; i++)
+    if (millis() - scanTimer > scanTimeout)
     {
-      int level = digitalRead(buttonPins[i]);
-      Button &button = buttons[i];
+      // getting input timed out
+      debug.printf("Sorry, you timed out!\n");
+      delay(1000);
+      endGame();
+    }
 
-      if (level == 0) // i.e. button has been pulled down
+    // scan the buttons to update the states
+    scanButtons();
+
+    if (updatedButtonsCount)
+    {
+      Button *updatedButton = updatedButtons[0]; // just take first input
+
+      if (updatedButton->state == ButtonState::PRESSED)
       {
-        if ((button.state == ButtonState::IDLE || button.state == ButtonState::RELEASED) &&
-            (millis() - button.holdTimer > debounceTime))
-        {
-          button.state = ButtonState::PRESSED;
-          button.holdTimer = millis();
+        // reset timeout timer
+        scanTimer = millis();
 
-          // Reset timeout timer
-          scanTimer = millis();
+        // blink pad
+        padOn(updatedButton->value);
+        delay(200);
+        padOff(updatedButton->value);
 
-          // blink pad
-          padOn(i);
-          delay(200);
-          padOff(i);
+        // update input sequence
+        inputSequence[inputSequenceLength++] = updatedButton->value;
 
-          // update input sequence
-          inputSequence[inputSequenceLength++] = i;
-
-          // call the passed in function
-          (handler != nullptr) ? (this->*handler)() : debug.printf("WARN: handler not defined!\n");
-        }
-
-        else if (button.state == ButtonState::PRESSED &&
-                 (millis() - button.holdTimer > holdTime))
-        {
-          button.state = ButtonState::HELD;
-
-          debug.printf("Button held: %i\n", i);
-        }
-      }
-      else
-      {
-        if (button.state == ButtonState::PRESSED || button.state == ButtonState::HELD)
-        {
-          button.state = ButtonState::RELEASED;
-        }
-        else if (button.state == ButtonState::RELEASED)
-        {
-          button.state = ButtonState::IDLE;
-        }
+        // call the passed in function
+        (handler != nullptr) ? (this->*handler)() : debug.printf("WARN: handler not defined!\n");
       }
     }
-  }
-
-  if (buttonDidTimeout())
-  {
-    debug.printf("Sorry, you timed out!\n");
-    delay(1000);
-    endGame();
   }
 }
 
@@ -258,40 +281,41 @@ void MemoryBlink::startGame(GameMode mode)
 
   case GameMode::CLASSIC:
   {
-    gameLoop(&MemoryBlink::classicHandler);
+
+    gameLoop(&MemoryBlink::classicHandler, "Classic", eeprom_read_byte(&classicHighScoreLocation));
     break;
   }
 
   case GameMode::CLASSIC_REVERSED:
   {
-    gameLoop(&MemoryBlink::classicReversedHandler);
+    gameLoop(&MemoryBlink::classicReversedHandler, "Classic Reversed", eeprom_read_byte(&classicReversedHighScoreLocation));
     break;
   }
 
   case GameMode::SHUFFLE:
   {
-    gameLoop(&MemoryBlink::shuffleHandler);
+    gameLoop(&MemoryBlink::shuffleHandler, "Shuffle", eeprom_read_byte(&shuffleHighScoreLocation));
     break;
   }
 
-   case GameMode::SHUFFLE_REVERSED:
+  case GameMode::SHUFFLE_REVERSED:
   {
-    gameLoop(&MemoryBlink::shuffleReversedHandler);
+    gameLoop(&MemoryBlink::shuffleReversedHandler, "Shuffle Reversed", eeprom_read_byte(&shuffleReversedHighScoreLocation));
     break;
   }
-
 
   default:
     break;
   }
 }
 
-void MemoryBlink::gameLoop(GameModeHandler handler)
+void MemoryBlink::gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore)
 {
   // start game with a sequence equal to the number of pads to avoid trivial levels
   addToGeneratedSequence(NUM_PADS);
 
-  debug.printf("Start ===========================\n");
+  debug.printf("%s (highscore: %i)\n", gameModeName, highscore);
+  debug.printf("----------------------\n");
 
   gameRunning = true;
   while (gameRunning)
@@ -303,7 +327,7 @@ void MemoryBlink::gameLoop(GameModeHandler handler)
     getInput(handler);
   }
 
-  debug.printf("End ===========================\n\n\n");
+  debug.printf("===========================\n\n\n");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -317,6 +341,12 @@ void MemoryBlink::classicHandler()
   int inputSequencePos = inputSequenceLength - 1;
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
   {
+    // update high score if it's been beaten
+    if (eeprom_read_byte(&classicHighScoreLocation) > level)
+    {
+      eeprom_update_byte(&classicHighScoreLocation, level);
+    }
+
     return endGame();
   }
 
@@ -337,6 +367,12 @@ void MemoryBlink::classicReversedHandler()
   int inputSequencePos = inputSequenceLength - 1;
   if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
   {
+    // update high score if it's been beaten
+    if (eeprom_read_byte(&classicReversedHighScoreLocation) > level)
+    {
+      eeprom_update_byte(&classicReversedHighScoreLocation, level);
+    }
+
     return endGame();
   }
 
@@ -357,6 +393,12 @@ void MemoryBlink::shuffleHandler()
   int inputSequencePos = inputSequenceLength - 1;
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
   {
+    // update high score if it's been beaten
+    if (eeprom_read_byte(&shuffleHighScoreLocation) > level)
+    {
+      eeprom_update_byte(&shuffleHighScoreLocation, level);
+    }
+
     return endGame();
   }
 
@@ -381,6 +423,12 @@ void MemoryBlink::shuffleReversedHandler()
   int inputSequencePos = inputSequenceLength - 1;
   if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
   {
+    // update high score if it's been beaten
+    if (eeprom_read_byte(&shuffleReversedHighScoreLocation) > level)
+    {
+      eeprom_update_byte(&shuffleReversedHighScoreLocation, level);
+    }
+
     return endGame();
   }
 

@@ -22,8 +22,6 @@ const MelodyStep failureMelody[NUM_PADS] = {
     {Note::NOTE_E3, 600}   // End on a long, low note
 };
 
-
-
 /* -------------------------------------------------------------------------- */
 
 enum class ButtonState
@@ -37,7 +35,15 @@ enum class ButtonState
 struct Button
 {
   ButtonState state{ButtonState::IDLE};
+  uint32_t idleTimer{0};
   uint32_t holdTimer{0};
+  uint8_t value;
+
+  // add initializer for the value
+  Button(uint8_t v) : value(v) {};
+
+  // if none is given don't set the value
+  Button() = default;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -55,10 +61,16 @@ class MemoryBlink
 
 private:
   uint8_t const *ledPins;
+
   uint8_t const *buttonPins;
+  Button buttons[NUM_PADS]{0, 1, 2, 3};
+  Button *updatedButtons[NUM_PADS];
+  uint8_t updatedButtonsCount{0};
+  uint32_t debounceTime{300}, idleTime{5 * 1000}, holdTime{2 * 1000};
 
   Buzzer buzzer;
-  Button buttons[NUM_PADS]{};
+
+  uint32_t scanTimer{0}, scanTimeout{5 * 1000};
 
   int level{0}; // starts at level 0
 
@@ -68,12 +80,8 @@ private:
   int inputSequence[MAX_SEQUENCE]{};
   int inputSequenceLength = 0;
 
-  bool gameRunning = false;
-
-  bool shouldScanButtons{false};
-
-  uint32_t debounceTime{300}, holdTime{2 * 1000};
-  uint32_t scanTimer{0}, scanTimeout{5 * 1000};
+  bool gameRunning{false};
+  bool shouldGetInput{false};
 
   // Generic game mode handler type
   // todo: use concepts for esp32
@@ -97,13 +105,19 @@ private:
 private:
   void levelUp();
   void endGame();
-  void getInput(GameModeHandler onPress);
-  void gameLoop(GameModeHandler onPress);
+
+  void scanButtons();
+  void getInput(GameModeHandler handler);
+  void gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore);
 
 private:
+  uint8_t classicHighScoreLocation = 0x10;
   void classicHandler();
+  uint8_t classicReversedHighScoreLocation = 0x11;
   void classicReversedHandler();
+  uint8_t shuffleHighScoreLocation = 0x12;
   void shuffleHandler();
+  uint8_t shuffleReversedHighScoreLocation = 0x13;
   void shuffleReversedHandler();
 
 public:
