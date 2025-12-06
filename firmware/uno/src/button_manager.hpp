@@ -32,6 +32,10 @@ private:
   Button buttons[count];
 
   uint32_t debounceTime{300}, idleTime{5 * 1000}, holdTime{2 * 1000};
+  uint32_t scanTimer{0};
+
+  Button const *updatedButtons[count];
+  uint8_t updatedButtonsCount{0};
 
 private:
   void initializePins()
@@ -44,13 +48,9 @@ private:
   }
 
 public:
-  Button const *updatedButtons[count];
-  uint8_t updatedButtonsCount{0};
-
-public:
   ButtonMan(uint8_t const pins[count]) : pins(pins), buttons()
   {
-    
+
     initializePins();
 
     // set default values for the buttons
@@ -124,5 +124,21 @@ public:
         updatedButtons[updatedButtonsCount++] = button;
       }
     }
+  }
+
+  const Button *getUpdate(ButtonState state)
+  {
+    scanButtons(); // scan the buttons
+
+    if (updatedButtonsCount)
+    {
+      Button const *updatedButton = updatedButtons[0]; // just take first input
+
+      if (updatedButton->state == state)
+      {
+        return updatedButton;
+      }
+    }
+    return nullptr;
   }
 };

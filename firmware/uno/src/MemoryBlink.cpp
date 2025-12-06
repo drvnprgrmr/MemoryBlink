@@ -189,29 +189,24 @@ void MemoryBlink::getInput(GameModeHandler handler)
       endGame();
     }
 
-    // scan the buttons to update the states
-    buttonMan.scanButtons();
+    // check if a button was pressed
+    Button const *updatedButton = buttonMan.getUpdate(ButtonState::PRESSED);
 
-    if (buttonMan.updatedButtonsCount)
+    if (updatedButton != nullptr)
     {
-      Button const *updatedButton = buttonMan.updatedButtons[0]; // just take first input
+      // reset timeout timer
+      scanTimer = millis();
 
-      if (updatedButton->state == ButtonState::PRESSED)
-      {
-        // reset timeout timer
-        scanTimer = millis();
+      // blink pad
+      padOn(updatedButton->value);
+      delay(200);
+      padOff(updatedButton->value);
 
-        // blink pad
-        padOn(updatedButton->value);
-        delay(200);
-        padOff(updatedButton->value);
+      // update input sequence
+      inputSequence[inputSequenceLength++] = updatedButton->value;
 
-        // update input sequence
-        inputSequence[inputSequenceLength++] = updatedButton->value;
-
-        // call the passed in function
-        (handler != nullptr) ? (this->*handler)() : debug.printf("WARN: handler not defined!\n");
-      }
+      // call the passed in function
+      (handler != nullptr) ? (this->*handler)() : debug.printf("WARN: handler not defined!\n");
     }
   }
 }
@@ -283,45 +278,40 @@ void MemoryBlink::startGame()
 
     if (millis() - delayTimer >= delayTime)
     {
-      debug.printf("led off pos: %i  \n", (idx + NUM_PADS - 1) % NUM_PADS);
       delayTimer = millis();                   // reset the timer
       ledOn(idx);                              // turn on this led
       ledOff((idx + NUM_PADS - 1) % NUM_PADS); // turn off the previous led
       idx = (idx + 1) % NUM_PADS;              // increment the index
     }
 
-    buttonMan.scanButtons();
+    Button const *updatedButton = buttonMan.getUpdate(ButtonState::HELD); // just take first input
 
-    if (buttonMan.updatedButtonsCount)
+    if (updatedButton != nullptr)
     {
-      Button const *updatedButton = buttonMan.updatedButtons[0]; // just take first input
-      if (updatedButton->state == ButtonState::HELD)
+      switch (updatedButton->value)
       {
-        switch (updatedButton->value)
-        {
-        case 0:
-          ledOff(); // turn off all leds
-          loadGame(GameMode::CLASSIC);
-          break;
+      case 0:
+        ledOff(); // turn off all leds
+        loadGame(GameMode::CLASSIC);
+        break;
 
-        case 1:
-          ledOff(); // turn off all leds
-          loadGame(GameMode::CLASSIC_REVERSED);
-          break;
+      case 1:
+        ledOff(); // turn off all leds
+        loadGame(GameMode::CLASSIC_REVERSED);
+        break;
 
-        case 2:
-          ledOff(); // turn off all leds
-          loadGame(GameMode::SHUFFLE);
-          break;
+      case 2:
+        ledOff(); // turn off all leds
+        loadGame(GameMode::SHUFFLE);
+        break;
 
-        case 3:
-          ledOff(); // turn off all leds
-          loadGame(GameMode::SHUFFLE_REVERSED);
-          break;
+      case 3:
+        ledOff(); // turn off all leds
+        loadGame(GameMode::SHUFFLE_REVERSED);
+        break;
 
-        default:
-          break;
-        }
+      default:
+        break;
       }
     }
   }
