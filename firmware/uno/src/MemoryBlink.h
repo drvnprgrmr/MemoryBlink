@@ -2,6 +2,7 @@
 
 #include <Bonezegei_Printf.h>
 #include "buzzer.h"
+#include "button_manager.hpp"
 
 #define NUM_PADS 4
 #define MAX_SEQUENCE 100
@@ -22,31 +23,6 @@ const MelodyStep failureMelody[NUM_PADS] = {
     {Note::NOTE_E3, 600}   // End on a long, low note
 };
 
-/* -------------------------------------------------------------------------- */
-
-enum class ButtonState
-{
-  IDLE,
-  RELEASED,
-  PRESSED,
-  HELD
-};
-
-struct Button
-{
-  ButtonState state{ButtonState::IDLE};
-  uint32_t idleTimer{0};
-  uint32_t holdTimer{0};
-  uint8_t value;
-
-  // add initializer for the value
-  Button(uint8_t v) : value(v) {};
-
-  // if none is given don't set the value
-  Button() = default;
-};
-
-/* -------------------------------------------------------------------------- */
 
 enum class GameMode
 {
@@ -62,13 +38,9 @@ class MemoryBlink
 private:
   uint8_t const *ledPins;
 
-  uint8_t const *buttonPins;
-  Button buttons[NUM_PADS]{0, 1, 2, 3};
-  Button *updatedButtons[NUM_PADS];
-  uint8_t updatedButtonsCount{0};
-  uint32_t debounceTime{300}, idleTime{5 * 1000}, holdTime{2 * 1000};
-
   Buzzer buzzer;
+
+  ButtonMan<NUM_PADS> buttonMan;
 
   uint32_t scanTimer{0}, scanTimeout{5 * 1000};
 
@@ -106,7 +78,6 @@ private:
   void levelUp();
   void endGame();
 
-  void scanButtons();
   void getInput(GameModeHandler handler);
   void gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore);
 

@@ -3,7 +3,7 @@
 Bonezegei_Printf debug(&Serial);
 
 MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
-    : ledPins(ledPins), buttonPins(buttonPins), buzzer(buzzerPin)
+    : ledPins(ledPins), buzzer(buzzerPin), buttonMan(buttonPins)
 {
   // Initialize pins
   for (int i = 0; i < NUM_PADS; i++)
@@ -174,64 +174,6 @@ void MemoryBlink::endGame()
   delay(1000);
 }
 
-void MemoryBlink::scanButtons()
-{
-  // reset updated buttons count
-  updatedButtonsCount = 0;
-
-  for (int i = 0; i < NUM_PADS; i++)
-  {
-    int level = digitalRead(buttonPins[i]);
-    Button *button = &buttons[i];
-
-    bool updated = false;
-
-    if (level == 0) // i.e. button has been pulled down
-    {
-      if ((button->state == ButtonState::RELEASED || button->state == ButtonState::IDLE) &&
-          (millis() - button->holdTimer > debounceTime))
-      {
-        // start hold timer
-        button->holdTimer = millis();
-
-        button->state = ButtonState::PRESSED;
-        updated = true;
-      }
-
-      else if (button->state == ButtonState::PRESSED &&
-               (millis() - button->holdTimer > holdTime))
-      {
-        button->state = ButtonState::HELD;
-        updated = true;
-      }
-    }
-    else
-    {
-      if (button->state == ButtonState::PRESSED || button->state == ButtonState::HELD)
-      {
-        // start idle timer
-        button->idleTimer = millis();
-
-        button->state = ButtonState::RELEASED;
-        updated = true;
-      }
-      else if (button->state == ButtonState::RELEASED &&
-               (millis() - button->idleTimer > idleTime))
-      {
-        button->state = ButtonState::IDLE;
-        updated = true;
-      }
-    }
-
-    // check if a button was updated
-    if (updated)
-    {
-      // add this button to the list of updated buttons
-      updatedButtons[updatedButtonsCount++] = button;
-    }
-  }
-}
-
 void MemoryBlink::getInput(GameModeHandler handler)
 {
   shouldGetInput = true;
@@ -248,11 +190,11 @@ void MemoryBlink::getInput(GameModeHandler handler)
     }
 
     // scan the buttons to update the states
-    scanButtons();
+    buttonMan.scanButtons();
 
-    if (updatedButtonsCount)
+    if (buttonMan.updatedButtonsCount)
     {
-      Button *updatedButton = updatedButtons[0]; // just take first input
+      Button const *updatedButton = buttonMan.updatedButtons[0]; // just take first input
 
       if (updatedButton->state == ButtonState::PRESSED)
       {
