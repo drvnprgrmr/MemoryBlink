@@ -216,7 +216,7 @@ void MemoryBlink::getInput(GameModeHandler handler)
   }
 }
 
-void MemoryBlink::startGame(GameMode mode)
+void MemoryBlink::loadGame(GameMode mode)
 {
   switch (mode)
   {
@@ -272,6 +272,61 @@ void MemoryBlink::gameLoop(GameModeHandler handler, const char *gameModeName, ui
   debug.printf("===========================\n\n\n");
 }
 
+void MemoryBlink::startGame()
+{
+  // get user's choice for the current game
+  while (true)
+  {
+    // show loading lights
+    static int8_t idx = 0;
+    static uint32_t delayTime = 350, delayTimer = millis() - 350;
+
+    if (millis() - delayTimer >= delayTime)
+    {
+      debug.printf("led off pos: %i  \n", (idx + NUM_PADS - 1) % NUM_PADS);
+      delayTimer = millis();                   // reset the timer
+      ledOn(idx);                              // turn on this led
+      ledOff((idx + NUM_PADS - 1) % NUM_PADS); // turn off the previous led
+      idx = (idx + 1) % NUM_PADS;              // increment the index
+    }
+
+    buttonMan.scanButtons();
+
+    if (buttonMan.updatedButtonsCount)
+    {
+      Button const *updatedButton = buttonMan.updatedButtons[0]; // just take first input
+      if (updatedButton->state == ButtonState::HELD)
+      {
+        switch (updatedButton->value)
+        {
+        case 0:
+          ledOff(); // turn off all leds
+          loadGame(GameMode::CLASSIC);
+          break;
+
+        case 1:
+          ledOff(); // turn off all leds
+          loadGame(GameMode::CLASSIC_REVERSED);
+          break;
+
+        case 2:
+          ledOff(); // turn off all leds
+          loadGame(GameMode::SHUFFLE);
+          break;
+
+        case 3:
+          ledOff(); // turn off all leds
+          loadGame(GameMode::SHUFFLE_REVERSED);
+          break;
+
+        default:
+          break;
+        }
+      }
+    }
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /*                                 GAME MODES                                 */
 /* -------------------------------------------------------------------------- */
@@ -284,7 +339,7 @@ void MemoryBlink::classicHandler()
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
   {
     // update high score if it's been beaten
-    if (eeprom_read_byte(&classicHighScoreLocation) > level)
+    if (level > eeprom_read_byte(&classicHighScoreLocation))
     {
       eeprom_update_byte(&classicHighScoreLocation, level);
     }
@@ -310,7 +365,7 @@ void MemoryBlink::classicReversedHandler()
   if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
   {
     // update high score if it's been beaten
-    if (eeprom_read_byte(&classicReversedHighScoreLocation) > level)
+    if (level > eeprom_read_byte(&classicReversedHighScoreLocation))
     {
       eeprom_update_byte(&classicReversedHighScoreLocation, level);
     }
@@ -336,7 +391,7 @@ void MemoryBlink::shuffleHandler()
   if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
   {
     // update high score if it's been beaten
-    if (eeprom_read_byte(&shuffleHighScoreLocation) > level)
+    if (level > eeprom_read_byte(&shuffleHighScoreLocation))
     {
       eeprom_update_byte(&shuffleHighScoreLocation, level);
     }
@@ -366,7 +421,7 @@ void MemoryBlink::shuffleReversedHandler()
   if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
   {
     // update high score if it's been beaten
-    if (eeprom_read_byte(&shuffleReversedHighScoreLocation) > level)
+    if (level > eeprom_read_byte(&shuffleReversedHighScoreLocation))
     {
       eeprom_update_byte(&shuffleReversedHighScoreLocation, level);
     }

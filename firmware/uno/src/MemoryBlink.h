@@ -79,6 +79,7 @@ private:
   void endGame();
 
   void getInput(GameModeHandler handler);
+  void loadGame(GameMode mode);
   void gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore);
 
 private:
@@ -96,5 +97,5 @@ public:
   ~MemoryBlink();
 
 public:
-  void startGame(GameMode mode);
+  void startGame();
 };

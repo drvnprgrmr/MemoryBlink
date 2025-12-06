@@ -9,17 +9,10 @@ void setup()
 {
   Serial.begin(9600);
   Serial.println("MemoryBlink starting up!");
-}
 
-void loop()
-{
   MemoryBlink game{ledPins, buttonPins, buzzerPin};
-
-  game.startGame(GameMode::CLASSIC);
-
-  game.startGame(GameMode::CLASSIC_REVERSED);
-
-  game.startGame(GameMode::SHUFFLE);
-
-  game.startGame(GameMode::SHUFFLE_REVERSED);
+  while (true)
+  {
+    game.startGame();
+  }
 }
