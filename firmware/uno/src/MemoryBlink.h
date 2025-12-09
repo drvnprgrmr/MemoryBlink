@@ -23,7 +23,6 @@ const MelodyStep failureMelody[NUM_PADS] = {
     {Note::NOTE_E3, 600}   // End on a long, low note
 };
 
-
 enum class GameMode
 {
   CLASSIC,
@@ -68,8 +67,7 @@ private:
   void padOff(int pos);
 
 private:
-  void addToGeneratedSequence();
-  void addToGeneratedSequence(int count);
+  void addToGeneratedSequence(int count = 1);
   void displayGeneratedSequence();
   void clearGeneratedSequence();
   void clearInputSequence();

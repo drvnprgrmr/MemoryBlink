@@ -81,18 +81,13 @@ void MemoryBlink::padOff(int pos)
 /*                                  SEQUENCES                                 */
 /* -------------------------------------------------------------------------- */
 
-void MemoryBlink::addToGeneratedSequence()
-{
-  generatedSequence[generatedSequenceLength++] = random(NUM_PADS);
-}
-
 void MemoryBlink::addToGeneratedSequence(int count)
 {
   if (generatedSequenceLength < MAX_SEQUENCE)
   {
     for (int i = 0; i < count; i++)
     {
-      addToGeneratedSequence();
+      generatedSequence[generatedSequenceLength++] = random(NUM_PADS);
     }
   }
 }
