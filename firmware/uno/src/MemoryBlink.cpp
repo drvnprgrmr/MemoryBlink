@@ -13,9 +13,6 @@ MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPi
     pinMode(buttonPins[i], INPUT_PULLUP);
   }
 
-  // Initialize buzzer
-  Buzzer buzzer{buzzerPin};
-
   // Seed RNG (if A0 is floating it helps vary the sequence)
   randomSeed(analogRead(A0));
 
@@ -208,9 +205,11 @@ void MemoryBlink::getInput(GameModeHandler handler)
 
 void MemoryBlink::loadGame(GameMode mode)
 {
+  ledOff();   // turn off all leds
+  delay(500); // add slight delay before game starts
+
   switch (mode)
   {
-
   case GameMode::CLASSIC:
   {
 
@@ -264,6 +263,8 @@ void MemoryBlink::gameLoop(GameModeHandler handler, const char *gameModeName, ui
 
 void MemoryBlink::startGame()
 {
+  // todo: find out a way to turn off the arduino after a while
+
   // get user's choice for the current game
   while (true)
   {
@@ -286,22 +287,18 @@ void MemoryBlink::startGame()
       switch (updatedButton->value)
       {
       case 0:
-        ledOff(); // turn off all leds
         loadGame(GameMode::CLASSIC);
         break;
 
       case 1:
-        ledOff(); // turn off all leds
         loadGame(GameMode::CLASSIC_REVERSED);
         break;
 
       case 2:
-        ledOff(); // turn off all leds
         loadGame(GameMode::SHUFFLE);
         break;
 
       case 3:
-        ledOff(); // turn off all leds
         loadGame(GameMode::SHUFFLE_REVERSED);
         break;
 

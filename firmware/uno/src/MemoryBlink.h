@@ -80,7 +80,7 @@ private:
   void loadGame(GameMode mode);
   void gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore);
 
-private:
+private: // 4 different game modes
   uint8_t classicHighScoreLocation = 0x10;
   void classicHandler();
   uint8_t classicReversedHighScoreLocation = 0x11;
