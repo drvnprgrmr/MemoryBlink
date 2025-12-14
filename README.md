@@ -30,3 +30,5 @@ I plan on having two versions for the firmware: one with just a simple segment d
 -   The firmware waits for you to long press one of the 4 buttons to choose 4 different game modes.
 -   After that the high score for that game mode is displayed on the segment display and the games starts.
 -   After each level, your score is updated on the segment display.
+
+Button order for settings: up, down, left, right
