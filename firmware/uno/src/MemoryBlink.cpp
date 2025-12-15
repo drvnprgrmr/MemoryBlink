@@ -2,6 +2,10 @@
 
 Bonezegei_Printf debug(&Serial);
 
+// todo: move to header file
+// LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+
 MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
     : ledPins(ledPins), buzzer(buzzerPin), buttonMan(buttonPins)
 {
@@ -127,6 +131,11 @@ void MemoryBlink::levelUp()
   level++;
   debug.printf("Level up: %i\n", level);
 
+  // update level on screen
+  lcd.setCursor(0, 1);
+  lcd.print("Level:");
+  lcd.print(level);
+
   // play success melody
   buzzer.playMelody(successMelody, NUM_PADS);
 
@@ -148,6 +157,11 @@ void MemoryBlink::endGame()
   // reset level
   level = 0;
   debug.printf("You Lost!\n");
+
+  // reset the screen state
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Memory Blink!");
 
   // play failure melody
   buzzer.playMelody(failureMelody, NUM_PADS);
@@ -248,6 +262,19 @@ void MemoryBlink::gameLoop(GameModeHandler handler, const char *gameModeName, ui
   debug.printf("%s (highscore: %i)\n", gameModeName, highscore);
   debug.printf("----------------------\n");
 
+  // print high score to the screen and delay
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(gameModeName);
+
+  lcd.setCursor(0, 1);
+  lcd.print("Level:");
+  lcd.print(level);
+
+  lcd.setCursor(9, 1);
+  lcd.print("High:");
+  lcd.print(highscore);
+
   gameRunning = true;
   while (gameRunning)
   {
@@ -280,6 +307,7 @@ void MemoryBlink::startGame()
       idx = (idx + 1) % NUM_PADS;              // increment the index
     }
 
+    //! don't remove this method for choosing game mode
     Button const *updatedButton = buttonMan.getUpdate(ButtonState::HELD); // just take first input
 
     if (updatedButton != nullptr)
@@ -307,6 +335,14 @@ void MemoryBlink::startGame()
       }
     }
   }
+}
+
+void MemoryBlink::initLcd() {
+  // Initialize the lcd
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Memory Blink!");
 }
 
 /* -------------------------------------------------------------------------- */

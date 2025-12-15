@@ -11,6 +11,9 @@ void setup()
   Serial.println("MemoryBlink starting up!");
 
   MemoryBlink game{ledPins, buttonPins, buzzerPin};
+
+  game.initLcd();
+
   while (true)
   {
     game.startGame();

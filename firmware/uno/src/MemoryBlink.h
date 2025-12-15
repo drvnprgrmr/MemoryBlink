@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bonezegei_Printf.h>
+#include <LiquidCrystal_I2C.h>
 #include "buzzer.h"
 #include "button_manager.hpp"
 
@@ -40,6 +41,8 @@ private:
   Buzzer buzzer;
 
   ButtonMan<NUM_PADS> buttonMan;
+
+  LiquidCrystal_I2C lcd{0x27, 16, 2};
 
   uint32_t scanTimer{0}, scanTimeout{5 * 1000};
 
@@ -91,9 +94,11 @@ private: // 4 different game modes
   void shuffleReversedHandler();
 
 public:
+  // todo: use a config struct instead
   MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin);
   ~MemoryBlink();
 
 public:
+  void initLcd();
   void startGame();
 };
