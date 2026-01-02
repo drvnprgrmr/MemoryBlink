@@ -1,18 +1,8 @@
 # MemoryBlink
 
-_NOTES TO ME_
-
--   No wifi features
--   No mixing and matching of modes (10 simon, 20 reverse, e.t.c.)
-
--   The game is color agnostic (should use white LEDs). You can swap colors by physically replacing the pads.
--   There should be a physical switch to turn off the buzzer.
-
 ## Firmware Versions
 
-I plan on having two versions for the firmware: one with just a simple segment display intended for more of a personal use without support for multiplayer features; while the other will have a simple lcd screen that uses a small user interface controllable by the buttons to change basic settings, add players and so on. Also, this is starting out with Arduino but I eventually want all my projects to be built using an ESP so I'll likely migrate it later on. This is just for prototyping and getting stuff to work.
-
-
+I plan on having two versions for the firmware: one with just a simple segment display intended for more of a personal use without support for multiplayer features; while the other will have a simple lcd screen that uses a small user interface controllable by the buttons to change basic settings, add players and so on.
 
 ### GAMEPLAY
 
