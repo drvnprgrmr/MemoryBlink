@@ -127,6 +127,7 @@ public:
     }
   }
 
+  // get a specific state update
   const Button *getUpdate(ButtonState state)
   {
     scanButtons(); // scan the buttons
@@ -141,5 +142,18 @@ public:
       }
     }
     return nullptr;
+  }
+
+  // get any updated state
+  const Button *getUpdate()
+  {
+    scanButtons(); // scan the buttons
+
+    if (updatedButtonsCount)
+    {
+      Button const *updatedButton = updatedButtons[0]; // just take first input
+
+      return updatedButton;
+    }
   }
 };
