@@ -5,8 +5,9 @@
 enum class ButtonState
 {
   IDLE,
-  RELEASED,
   PRESSED,
+  PRESS_RELEASE,
+  HOLD_RELEASE,
   HELD
 };
 
@@ -82,7 +83,7 @@ public:
 
       if (level == 0) // i.e. button has been pulled down
       {
-        if ((button->state == ButtonState::RELEASED || button->state == ButtonState::IDLE) &&
+        if ((button->state == ButtonState::PRESS_RELEASE || button->state == ButtonState::HOLD_RELEASE || button->state == ButtonState::IDLE) &&
             (millis() - button->holdTimer > debounceTime))
         {
           // start hold timer
@@ -106,10 +107,10 @@ public:
           // start idle timer
           button->idleTimer = millis();
 
-          button->state = ButtonState::RELEASED;
+          button->state = (button->state == ButtonState::PRESSED) ? ButtonState::PRESS_RELEASE : ButtonState::HOLD_RELEASE;
           updated = true;
         }
-        else if (button->state == ButtonState::RELEASED &&
+        else if (button->state != ButtonState::IDLE &&
                  (millis() - button->idleTimer > idleTime))
         {
           button->state = ButtonState::IDLE;
