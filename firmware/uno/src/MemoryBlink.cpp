@@ -5,20 +5,17 @@ Bonezegei_Printf debug(&Serial);
 // todo: move to header file
 // LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-
 MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const plainLedPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
-    : ledPins(ledPins), buzzer(buzzerPin), buttonMan(buttonPins)
+    : ledPins(ledPins), plainLedPins(plainLedPins), buzzer(buzzerPin), buttonMan(buttonPins)
 {
   // Initialize pins
   for (int i = 0; i < NUM_PADS; i++)
   {
     pinMode(ledPins[i], OUTPUT);
-    digitalWrite(ledPins[i], LOW);
+    digitalWrite(ledPins[i], 0);
 
     pinMode(plainLedPins[i], OUTPUT);
-    digitalWrite(plainLedPins[i], HIGH);
-
-
+    digitalWrite(plainLedPins[i], 0);
 
     pinMode(buttonPins[i], INPUT_PULLUP);
   }
@@ -48,7 +45,14 @@ MemoryBlink::~MemoryBlink()
 
 void MemoryBlink::ledOn(int pos)
 {
-  digitalWrite(ledPins[pos], 1);
+  if (gameplay[GAMEPLAY_COLOR_IDX])
+  {
+    digitalWrite(ledPins[pos], 1);
+  }
+  else
+  {
+    digitalWrite(plainLedPins[pos], 1);
+  }
 }
 
 void MemoryBlink::ledOn()
@@ -61,7 +65,14 @@ void MemoryBlink::ledOn()
 
 void MemoryBlink::ledOff(int pos)
 {
-  digitalWrite(ledPins[pos], 0);
+  if (gameplay[GAMEPLAY_COLOR_IDX])
+  {
+    digitalWrite(ledPins[pos], 0);
+  }
+  else
+  {
+    digitalWrite(plainLedPins[pos], 0);
+  }
 }
 
 void MemoryBlink::ledOff()
@@ -75,13 +86,19 @@ void MemoryBlink::ledOff()
 void MemoryBlink::padOn(int pos)
 {
   ledOn(pos);
-  buzzer.play(padNotes[pos]);
+  if (gameplay[GAMEPLAY_SOUND_IDX])
+  {
+    buzzer.play(padNotes[pos]);
+  }
 }
 
 void MemoryBlink::padOff(int pos)
 {
   ledOff(pos);
-  buzzer.stop();
+  if (gameplay[GAMEPLAY_SOUND_IDX])
+  {
+    buzzer.stop();
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -186,7 +203,7 @@ void MemoryBlink::endGame()
   delay(1000);
 }
 
-void MemoryBlink::getInput(GameModeHandler handler)
+void MemoryBlink::getInput()
 {
   shouldGetInput = true;
   scanTimer = millis();
@@ -217,69 +234,56 @@ void MemoryBlink::getInput(GameModeHandler handler)
       // update input sequence
       inputSequence[inputSequenceLength++] = updatedButton->value;
 
-      // call the passed in function
-      (handler != nullptr) ? (this->*handler)() : debug.printf("WARN: handler not defined!\n");
+      // call the handler
+      handler();
     }
   }
 }
 
-void MemoryBlink::loadGame(GameMode mode)
+void MemoryBlink::gameLoop(uint8_t highscore)
 {
-  ledOff();   // turn off all leds
-  delay(500); // add slight delay before game starts
-
-  switch (mode)
-  {
-  case GameMode::CLASSIC:
-  {
-
-    gameLoop(&MemoryBlink::classicHandler, "Classic", eeprom_read_byte(&classicHighScoreLocation));
-    break;
-  }
-
-  case GameMode::CLASSIC_REVERSED:
-  {
-    gameLoop(&MemoryBlink::classicReversedHandler, "Classic Reversed", eeprom_read_byte(&classicReversedHighScoreLocation));
-    break;
-  }
-
-  case GameMode::SHUFFLE:
-  {
-    gameLoop(&MemoryBlink::shuffleHandler, "Shuffle", eeprom_read_byte(&shuffleHighScoreLocation));
-    break;
-  }
-
-  case GameMode::SHUFFLE_REVERSED:
-  {
-    gameLoop(&MemoryBlink::shuffleReversedHandler, "Shuffle Reversed", eeprom_read_byte(&shuffleReversedHighScoreLocation));
-    break;
-  }
-
-  default:
-    break;
-  }
-}
-
-void MemoryBlink::gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore)
-{
-  // start game with a sequence equal to the number of pads to avoid trivial levels
-  addToGeneratedSequence(NUM_PADS);
-
-  debug.printf("%s (highscore: %i)\n", gameModeName, highscore);
+  // add to the sequence
+  addToGeneratedSequence();
+  
+  debug.printf("G:%i%i%i%i (highscore: %i)\n", gameplay[0], gameplay[1], gameplay[2], gameplay[3], highscore);
   debug.printf("----------------------\n");
-
+  
   // print high score to the screen and delay
+  /* ----------------------------------- top ---------------------------------- */
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print(gameModeName);
+  lcd.print("Player:1");
+
+  lcd.setCursor(11, 0);
+  lcd.print("(G");
+  lcd.print(gameplay[0]);
+  lcd.print(gameplay[1]);
+  lcd.print(gameplay[2]);
+  lcd.print(gameplay[3]);
+  lcd.print(")");
+
+
+/* --------------------------------- bottom --------------------------------- */
 
   lcd.setCursor(0, 1);
-  lcd.print("Level:");
+  lcd.print("Score:");
+  if (level < 10)
+  {
+    lcd.print("0");
+  }
   lcd.print(level);
 
   lcd.setCursor(9, 1);
-  lcd.print("High:");
+  lcd.print("(HS:");
+  if (highscore < 10)
+  {
+    lcd.print("0");
+  }
   lcd.print(highscore);
+  lcd.print(")");
+
+
+  /* -------------------------------------------------------------------------- */
 
   gameRunning = true;
   while (gameRunning)
@@ -288,7 +292,7 @@ void MemoryBlink::gameLoop(GameModeHandler handler, const char *gameModeName, ui
     displayGeneratedSequence();
 
     // get user input
-    getInput(handler);
+    getInput();
   }
 
   debug.printf("===========================\n\n\n");
@@ -301,49 +305,28 @@ void MemoryBlink::startGame()
   // get user's choice for the current game
   while (true)
   {
-    // show loading lights
-    static int8_t idx = 0;
-    static uint32_t delayTime = 350, delayTimer = millis() - 350;
-
-    if (millis() - delayTimer >= delayTime)
-    {
-      delayTimer = millis();                   // reset the timer
-      ledOn(idx);                              // turn on this led
-      ledOff((idx + NUM_PADS - 1) % NUM_PADS); // turn off the previous led
-      idx = (idx + 1) % NUM_PADS;              // increment the index
-    }
-
-    //! don't remove this method for choosing game mode
-    Button const *updatedButton = buttonMan.getUpdate(ButtonState::HELD); // just take first input
+    Button const *updatedButton = buttonMan.getUpdate(ButtonState::PRESS_RELEASE); // just take first input
 
     if (updatedButton != nullptr)
     {
-      switch (updatedButton->value)
+      // toggle that particular gameplay setting
+      gameplay[updatedButton->value] ^= 1;
+
+      // turn led at position on or off.
+      if (gameplay[updatedButton->value])
       {
-      case 0:
-        loadGame(GameMode::CLASSIC);
-        break;
-
-      case 1:
-        loadGame(GameMode::CLASSIC_REVERSED);
-        break;
-
-      case 2:
-        loadGame(GameMode::SHUFFLE);
-        break;
-
-      case 3:
-        loadGame(GameMode::SHUFFLE_REVERSED);
-        break;
-
-      default:
-        break;
+        ledOn(updatedButton->value);
+      }
+      else
+      {
+        ledOff(updatedButton->value);
       }
     }
   }
 }
 
-void MemoryBlink::initLcd() {
+void MemoryBlink::initLcd()
+{
   // Initialize the lcd
   lcd.init();
   lcd.backlight();
@@ -355,69 +338,29 @@ void MemoryBlink::initLcd() {
 /*                                 GAME MODES                                 */
 /* -------------------------------------------------------------------------- */
 
-// Classic mode handler
-void MemoryBlink::classicHandler()
+void MemoryBlink::handler()
 {
-  // Check if user enters the exact sequence that was described
   int inputSequencePos = inputSequenceLength - 1;
-  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
+
+  /* ------------------------ Determine fail condition ------------------------ */
+
+  bool didFail{false};
+  if (gameplay[GAMEPLAY_RECALL_IDX]) // do a forward recall check
+  {
+    didFail = inputSequence[inputSequencePos] != generatedSequence[inputSequencePos];
+  }
+  else // do a backward recall check
+  {
+    didFail = inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength];
+  }
+
+  /* ------------- Check if input failed the determined condition ------------- */
+  if (didFail)
   {
     // update high score if it's been beaten
-    if (level > eeprom_read_byte(&classicHighScoreLocation))
+    if (level > eeprom_read_byte(&memStart))
     {
-      eeprom_update_byte(&classicHighScoreLocation, level);
-    }
-
-    return endGame();
-  }
-
-  // Check if the last sequence has been entered
-  else if (inputSequenceLength == generatedSequenceLength)
-  {
-    levelUp();
-
-    // add a random position to the generated sequence
-    addToGeneratedSequence();
-  }
-}
-
-// Classic Reversed mode handler
-void MemoryBlink::classicReversedHandler()
-{
-  // Check if user enters the reverse sequence that was described
-  int inputSequencePos = inputSequenceLength - 1;
-  if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
-  {
-    // update high score if it's been beaten
-    if (level > eeprom_read_byte(&classicReversedHighScoreLocation))
-    {
-      eeprom_update_byte(&classicReversedHighScoreLocation, level);
-    }
-
-    return endGame();
-  }
-
-  // Check if the last sequence has been entered
-  else if (inputSequenceLength == generatedSequenceLength)
-  {
-    levelUp();
-
-    // add a random position to the generated sequence
-    addToGeneratedSequence();
-  }
-}
-
-// Shuffle mode handler
-void MemoryBlink::shuffleHandler()
-{
-  // Check if user enters the exact sequence that was described
-  int inputSequencePos = inputSequenceLength - 1;
-  if (inputSequence[inputSequencePos] != generatedSequence[inputSequencePos])
-  {
-    // update high score if it's been beaten
-    if (level > eeprom_read_byte(&shuffleHighScoreLocation))
-    {
-      eeprom_update_byte(&shuffleHighScoreLocation, level);
+      eeprom_update_byte(&memStart, level);
     }
 
     return endGame();
@@ -429,40 +372,18 @@ void MemoryBlink::shuffleHandler()
     // level up the game
     levelUp();
 
-    // reset the generated sequence
-    clearGeneratedSequence();
-
-    // add new set of random sequence plus offset
-    addToGeneratedSequence(NUM_PADS + level);
-  }
-}
-
-// Shuffle Reversed mode handler
-void MemoryBlink::shuffleReversedHandler()
-{
-  // Check if user enters the exact sequence that was described
-  int inputSequencePos = inputSequenceLength - 1;
-  if (inputSequence[inputSequencePos] != generatedSequence[generatedSequenceLength - inputSequenceLength])
-  {
-    // update high score if it's been beaten
-    if (level > eeprom_read_byte(&shuffleReversedHighScoreLocation))
+    if (gameplay[GAMEPLAY_SEQUENCE_IDX]) // i.e. plusone mode
     {
-      eeprom_update_byte(&shuffleReversedHighScoreLocation, level);
+      // add a random position to the generated sequence
+      addToGeneratedSequence();
     }
+    else // i.e. shuffle mode
+    {
+      // reset the generated sequence
+      clearGeneratedSequence();
 
-    return endGame();
-  }
-
-  // Check if the last sequence has been entered
-  else if (inputSequenceLength == generatedSequenceLength)
-  {
-    // level up the game
-    levelUp();
-
-    // reset the generated sequence
-    clearGeneratedSequence();
-
-    // add new set of random sequence plus offset
-    addToGeneratedSequence(NUM_PADS + level);
+      // add new set of random sequence plus offset
+      addToGeneratedSequence(NUM_PADS + level);
+    }
   }
 }

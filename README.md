@@ -12,27 +12,31 @@ There should be four different configurable toggles for the game mode.
 - sound/quiet ('sound' enables the buzzer, 'quiet' disables it)
 - diff/same ('diff' uses different colors per pad while 'same' uses the same color for all pads)
 
-The time between levels should be fixed at 4 seconds.
-Let the game change pace after every 10 levels, for 4 times.
-01-10: 500ms Flash / 125ms Delay | 5 seconds timeout
-11-20: 400ms Flash / 100ms Delay | 4 seconds timeout
-21-30: 300ms Flash / 75ms Delay | 3 seconds timeout
-31-40: 200ms Flash / 50ms Delay | 2 seconds timeout
-There'll be no more changes for subsequent levels
+The time between levels should be fixed at 4 seconds. \
+Let the game change pace after every 10 levels, for 4 times. \
+01-10: 500ms Flash / 125ms Delay | 5 seconds timeout \
+11-20: 400ms Flash / 100ms Delay | 4 seconds timeout \
+21-30: 300ms Flash / 75ms Delay | 3 seconds timeout \
+31-40: 200ms Flash / 50ms Delay | 2 seconds timeout \
+
+----
+
+****
+Memory Blink! \
+Player:x (Gxxxx)
+Score:xx (HS:xx)
 
 #### With screen
 
 -   At initial boot up, you will be prompted to configure the game mode. The last chosen game mode will be selected
--   After choosing a game mode, you'll be asked to choose the player (every player has their high scores for that game mode by the side; also, at the end of the list there'll be an option to add an extra player up to 100 (might be extended to the max available based on memory after every other feature's been implemented/ or might just be a maximum of 4 players ;) ))
+-   After choosing a game mode, you'll be asked to choose the player (every player has their high scores for that game mode by the side)
 -   Every player plays a full turn and must end before another player can play.
--   The game runs on until you lose or get to the end at 100 steps per sequence (unlikely though :) ).
+-   The game runs on until you lose or get to the end at 40 sequences.
 -   Your level is updated on a screen after each level.
 
 #### With Segment Display
 
 -   Before the game starts, all the lights should blink, the buzzer should sound, and segments should turn on to confirm everything works (more like a POST).
--   The firmware waits for you to long press one of the 4 buttons to choose 4 different game modes.
+-   You configure the game mode by pressing the 4 buttons to toggle settings.
 -   After that the high score for that game mode is displayed on the segment display and the games starts.
 -   After each level, your score is updated on the segment display.
-
-Button order for settings: up, down, left, right

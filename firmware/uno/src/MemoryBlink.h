@@ -6,8 +6,8 @@
 #include "button_manager.hpp"
 
 #define NUM_PADS 4
-#define MAX_SEQUENCE 100
-#define MEM_START 0x10  // where to start saving variables
+#define MAX_SEQUENCE 40
+#define MEM_START 0x10 // where to start saving variables
 
 constexpr Note padNotes[NUM_PADS]{Note::NOTE_E4, Note::NOTE_CS4, Note::NOTE_A4, Note::NOTE_E3};
 
@@ -25,21 +25,10 @@ const MelodyStep failureMelody[NUM_PADS] = {
     {Note::NOTE_E3, 600}   // End on a long, low note
 };
 
-enum class GameMode
-{
-  CLASSIC,
-  CLASSIC_REVERSED,
-  SHUFFLE,
-  SHUFFLE_REVERSED
-};
-
-typedef struct
-{
-  uint8_t sequence = 1; // plusone: 1, random, 0
-  int8_t recall = 1;    // forwards: 1, backwards: -1
-  bool sound = true;
-  bool color = true;
-} Gameplay;
+#define GAMEPLAY_SEQUENCE_IDX 0 // 1:plusone 0:shuffle
+#define GAMEPLAY_RECALL_IDX 1   // 1:forward 0: backward
+#define GAMEPLAY_SOUND_IDX 2    // 1:sound 0:silent
+#define GAMEPLAY_COLOR_IDX 3    // 1:different 0:same
 
 class MemoryBlink
 {
@@ -52,7 +41,11 @@ private:
 
   ButtonMan<NUM_PADS> buttonMan;
 
-  Gameplay gameplay{};
+  // determines where we start saving data in the eeprom
+  uint8_t memStart{0x10};
+
+  // Each element dictates a game setting
+  uint8_t gameplay[NUM_PADS]{1, 1, 1, 1};
 
   // todo: create this later in init
   LiquidCrystal_I2C lcd{0x27, 16, 2};
@@ -70,9 +63,6 @@ private:
   bool gameRunning{false};
   bool shouldGetInput{false};
 
-  // Generic game mode handler type
-  // todo: use concepts for esp32
-  using GameModeHandler = void (MemoryBlink::*)();
 
 private:
   void ledOn(int pos);
@@ -92,19 +82,14 @@ private:
   void levelUp();
   void endGame();
 
-  void getInput(GameModeHandler handler);
-  void loadGame(GameMode mode);
-  void gameLoop(GameModeHandler handler, const char *gameModeName, uint8_t highscore);
+  void getInput();
+  void gameLoop(uint8_t highscore);
 
-private: // 4 different game modes
-  uint8_t classicHighScoreLocation = 0x10;
-  void classicHandler();
-  uint8_t classicReversedHighScoreLocation = 0x11;
-  void classicReversedHandler();
-  uint8_t shuffleHighScoreLocation = 0x12;
-  void shuffleHandler();
-  uint8_t shuffleReversedHighScoreLocation = 0x13;
-  void shuffleReversedHandler();
+  void drawGameScreen();
+  void drawStartupScreen();
+
+private:
+  void handler();
 
 public:
   // todo: use a config struct instead
