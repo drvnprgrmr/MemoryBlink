@@ -6,7 +6,7 @@ Bonezegei_Printf debug(&Serial);
 // LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 
-MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
+MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const plainLedPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin)
     : ledPins(ledPins), buzzer(buzzerPin), buttonMan(buttonPins)
 {
   // Initialize pins
@@ -14,6 +14,12 @@ MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPi
   {
     pinMode(ledPins[i], OUTPUT);
     digitalWrite(ledPins[i], LOW);
+
+    pinMode(plainLedPins[i], OUTPUT);
+    digitalWrite(plainLedPins[i], HIGH);
+
+
+
     pinMode(buttonPins[i], INPUT_PULLUP);
   }
 

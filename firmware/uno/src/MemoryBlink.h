@@ -7,6 +7,7 @@
 
 #define NUM_PADS 4
 #define MAX_SEQUENCE 100
+#define MEM_START 0x10  // where to start saving variables
 
 constexpr Note padNotes[NUM_PADS]{Note::NOTE_E4, Note::NOTE_CS4, Note::NOTE_A4, Note::NOTE_E3};
 
@@ -32,16 +33,28 @@ enum class GameMode
   SHUFFLE_REVERSED
 };
 
+typedef struct
+{
+  uint8_t sequence = 1; // plusone: 1, random, 0
+  int8_t recall = 1;    // forwards: 1, backwards: -1
+  bool sound = true;
+  bool color = true;
+} Gameplay;
+
 class MemoryBlink
 {
 
 private:
   uint8_t const *ledPins;
+  uint8_t const *plainLedPins;
 
   Buzzer buzzer;
 
   ButtonMan<NUM_PADS> buttonMan;
 
+  Gameplay gameplay{};
+
+  // todo: create this later in init
   LiquidCrystal_I2C lcd{0x27, 16, 2};
 
   uint32_t scanTimer{0}, scanTimeout{5 * 1000};
@@ -95,7 +108,7 @@ private: // 4 different game modes
 
 public:
   // todo: use a config struct instead
-  MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin);
+  MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const plainLedPins[NUM_PADS], uint8_t const buttonPins[NUM_PADS], uint8_t const buzzerPin);
   ~MemoryBlink();
 
 public:
