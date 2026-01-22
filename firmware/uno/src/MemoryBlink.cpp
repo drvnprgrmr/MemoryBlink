@@ -45,7 +45,7 @@ MemoryBlink::~MemoryBlink()
 
 void MemoryBlink::ledOn(int pos)
 {
-  if (gameplay[GAMEPLAY_COLOR_IDX])
+  if (bitRead(gameplay, 3))
   {
     digitalWrite(ledPins[pos], 1);
   }
@@ -65,7 +65,7 @@ void MemoryBlink::ledOn()
 
 void MemoryBlink::ledOff(int pos)
 {
-  if (gameplay[GAMEPLAY_COLOR_IDX])
+  if (bitRead(gameplay, 3))
   {
     digitalWrite(ledPins[pos], 0);
   }
@@ -86,7 +86,7 @@ void MemoryBlink::ledOff()
 void MemoryBlink::padOn(int pos)
 {
   ledOn(pos);
-  if (gameplay[GAMEPLAY_SOUND_IDX])
+  if (bitRead(gameplay, 2))
   {
     buzzer.play(padNotes[pos]);
   }
@@ -95,7 +95,7 @@ void MemoryBlink::padOn(int pos)
 void MemoryBlink::padOff(int pos)
 {
   ledOff(pos);
-  if (gameplay[GAMEPLAY_SOUND_IDX])
+  if (bitRead(gameplay, 2))
   {
     buzzer.stop();
   }
@@ -117,7 +117,6 @@ void MemoryBlink::addToGeneratedSequence(int count)
 }
 
 void MemoryBlink::displayGeneratedSequence()
-
 {
   for (int i = 0; i < generatedSequenceLength; i++)
   {
@@ -151,13 +150,10 @@ void MemoryBlink::levelUp()
   delay(1000);
 
   // increase level
-  level++;
-  debug.printf("Level up: %i\n", level);
+  score++;
 
   // update level on screen
-  lcd.setCursor(0, 1);
-  lcd.print("Level:");
-  lcd.print(level);
+  drawBottom();
 
   // play success melody
   buzzer.playMelody(successMelody, NUM_PADS);
@@ -177,14 +173,19 @@ void MemoryBlink::endGame()
   // add delay before
   delay(1000);
 
+  // update high score if it's been beaten
+  if (score > getHighscore())
+  {
+    setHighscore(score);
+  }
+
   // reset level
-  level = 0;
-  debug.printf("You Lost!\n");
+  score = 0;
 
   // reset the screen state
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Memory Blink!");
+  lcd.print("Try again!");
 
   // play failure melody
   buzzer.playMelody(failureMelody, NUM_PADS);
@@ -213,7 +214,6 @@ void MemoryBlink::getInput()
     if (millis() - scanTimer > scanTimeout)
     {
       // getting input timed out
-      debug.printf("Sorry, you timed out!\n");
       delay(1000);
       endGame();
     }
@@ -240,49 +240,39 @@ void MemoryBlink::getInput()
   }
 }
 
+uint8_t MemoryBlink::getHighscore()
+{
+  uint8_t highscoreAddr = memStart + (player - 1) * bit(NUM_PADS) + gameplay;
+
+  return EEPROM.read(highscoreAddr);
+}
+
+void MemoryBlink::setHighscore(uint8_t highscore)
+{
+  uint8_t highscoreAddr = memStart + (player - 1) * bit(NUM_PADS) + gameplay;
+
+  EEPROM.write(highscoreAddr, highscore);
+}
+
 void MemoryBlink::gameLoop()
 {
-  uint8_t highscore = 10;
+
+  uint8_t highscore = getHighscore();
+
   // add to the sequence
   addToGeneratedSequence();
 
-  debug.printf("G:%i%i%i%i (highscore: %i)\n", gameplay[0], gameplay[1], gameplay[2], gameplay[3], highscore);
-  debug.printf("----------------------\n");
-
-  // print high score to the screen and delay
-  /* ----------------------------------- top ---------------------------------- */
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Player:1");
+  lcd.print("Ready Player ");
+  lcd.print(player);
+  lcd.print("  ");
 
-  lcd.setCursor(11, 0);
-  lcd.print("(G");
-  lcd.print(gameplay[0]);
-  lcd.print(gameplay[1]);
-  lcd.print(gameplay[2]);
-  lcd.print(gameplay[3]);
-  lcd.print(")");
+  delay(4000);
 
-  /* --------------------------------- bottom --------------------------------- */
-
-  lcd.setCursor(0, 1);
-  lcd.print("Score:");
-  if (level < 10)
-  {
-    lcd.print("0");
-  }
-  lcd.print(level);
-
-  lcd.setCursor(9, 1);
-  lcd.print("(HS:");
-  if (highscore < 10)
-  {
-    lcd.print("0");
-  }
-  lcd.print(highscore);
-  lcd.print(")");
-
-  /* -------------------------------------------------------------------------- */
+  // print high score to the screen and delay
+  drawTop();
+  drawBottom();
 
   gameRunning = true;
   while (gameRunning)
@@ -293,14 +283,19 @@ void MemoryBlink::gameLoop()
     // get user input
     getInput();
   }
-
-  debug.printf("===========================\n\n\n");
 }
 
 void MemoryBlink::gameplaySetup()
 {
+  lcd.clear();
+  delay(1000);
+
   // update the screen
-  drawGameplaySetupScreen();
+  drawTop();
+  drawBottom("Gameplay Setup  ");
+
+  // load last gameplay
+  gameplay = EEPROM.read(memStart - 1);
 
   // choose gameplay options for the current game
   while (true)
@@ -312,48 +307,49 @@ void MemoryBlink::gameplaySetup()
       if (updatedButton->state == ButtonState::PRESS_RELEASE)
       {
         // toggle that particular gameplay setting
-        gameplay[updatedButton->value] ^= 1;
+        gameplay ^= gameplayMasks[updatedButton->value];
 
         // update the screen
-        drawGameplaySetupScreen();
+        drawTop();
       }
 
       // exit setup on any button hold
       else if (updatedButton->state == ButtonState::HELD)
       {
+        // save last gameplay
+        EEPROM.update(memStart - 1, gameplay);
         return;
       }
     }
   }
 }
 
-void MemoryBlink::drawGameplaySetupScreen()
+void MemoryBlink::drawTop()
 {
-  lcd.clear();
-  lcd.noCursor();
-
   lcd.setCursor(0, 0);
   lcd.print("Player ");
   lcd.print(player);
   lcd.print(" (G");
 
-  lcd.print(gameplay[0]);
-  lcd.print(gameplay[1]);
-  lcd.print(gameplay[2]);
-  lcd.print(gameplay[3]);
+  lcd.print(bitRead(gameplay, 0));
+  lcd.print(bitRead(gameplay, 1));
+  lcd.print(bitRead(gameplay, 2));
+  lcd.print(bitRead(gameplay, 3));
+
   lcd.print(")");
-
-  lcd.setCursor(0, 1);
-  lcd.print("Gameplay Setup");
-
-  lcd.setCursor(10, 0);
-  lcd.cursor();
 }
 
 void MemoryBlink::playerSetup()
 {
+  lcd.clear();
+  delay(1000);
+
   // update the screen
-  drawPlayerSetupScreen();
+  drawTop();
+  drawBottom("Select a Player.");
+
+  // load last player
+  player = EEPROM.read(memStart - 2);
 
   // choose gameplay options for the current game
   while (true)
@@ -366,45 +362,47 @@ void MemoryBlink::playerSetup()
       player = updatedButton->value + 1;
 
       // update the screen
-      drawPlayerSetupScreen();
+      drawTop();
     }
 
     // exit setup on any button hold
     else if (updatedButton->state == ButtonState::HELD)
     {
+      // save last player
+      EEPROM.update(memStart - 2, player);
       return;
     }
   }
 }
 
-void MemoryBlink::drawPlayerSetupScreen()
+void MemoryBlink::drawBottom()
 {
-  lcd.clear();
-  lcd.noCursor();
-
-  lcd.setCursor(0, 0);
-  lcd.print("Player ");
-  lcd.print(player);
-  lcd.print(" (G");
-
-  lcd.print(gameplay[0]);
-  lcd.print(gameplay[1]);
-  lcd.print(gameplay[2]);
-  lcd.print(gameplay[3]);
-  lcd.print(")");
+  uint8_t highscore = getHighscore();
 
   lcd.setCursor(0, 1);
-  lcd.print("Select player.");
+  lcd.print("Score:");
+  if (score < 10)
+  {
+    lcd.print("0");
+  }
+  lcd.print(score);
 
-  lcd.setCursor(7, 0);
-  lcd.cursor();
+  lcd.setCursor(9, 1);
+  lcd.print("(HS:");
+  if (highscore < 10)
+  {
+    lcd.print("0");
+  }
+  lcd.print(highscore);
+  lcd.print(")");
 }
 
-void MemoryBlink::startGame()
+void MemoryBlink::drawBottom(const char *displayText)
 {
-  gameplaySetup();
-  playerSetup();
+  lcd.setCursor(0, 1);
+  lcd.print(displayText);
 }
+
 
 void MemoryBlink::initLcd()
 {
@@ -439,7 +437,7 @@ void MemoryBlink::handler()
   /* ------------------------ Determine fail condition ------------------------ */
 
   bool didFail{false};
-  if (gameplay[GAMEPLAY_RECALL_IDX]) // do a forward recall check
+  if (bitRead(gameplay, 1)) // do a forward recall check
   {
     didFail = inputSequence[inputSequencePos] != generatedSequence[inputSequencePos];
   }
@@ -451,12 +449,6 @@ void MemoryBlink::handler()
   /* ------------- Check if input failed the determined condition ------------- */
   if (didFail)
   {
-    // update high score if it's been beaten
-    if (level > eeprom_read_byte(&memStart))
-    {
-      eeprom_update_byte(&memStart, level);
-    }
-
     return endGame();
   }
 
@@ -466,7 +458,7 @@ void MemoryBlink::handler()
     // level up the game
     levelUp();
 
-    if (gameplay[GAMEPLAY_SEQUENCE_IDX]) // i.e. plusone mode
+    if (bitRead(gameplay, 0)) // i.e. plusone mode
     {
       // add a random position to the generated sequence
       addToGeneratedSequence();
@@ -477,7 +469,7 @@ void MemoryBlink::handler()
       clearGeneratedSequence();
 
       // add new set of random sequence plus offset
-      addToGeneratedSequence(NUM_PADS + level);
+      addToGeneratedSequence(NUM_PADS + score);
     }
   }
 }

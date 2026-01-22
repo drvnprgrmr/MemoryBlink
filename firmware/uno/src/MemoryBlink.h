@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Bonezegei_Printf.h>
+#include <EEPROM.h>
 #include <LiquidCrystal_I2C.h>
 #include "buzzer.h"
 #include "button_manager.hpp"
@@ -25,10 +26,12 @@ const MelodyStep failureMelody[NUM_PADS] = {
     {Note::NOTE_E3, 600}   // End on a long, low note
 };
 
-#define GAMEPLAY_SEQUENCE_IDX 0 // 1:plusone 0:shuffle
-#define GAMEPLAY_RECALL_IDX 1   // 1:forward 0: backward
-#define GAMEPLAY_SOUND_IDX 2    // 1:sound 0:silent
-#define GAMEPLAY_COLOR_IDX 3    // 1:different 0:same
+constexpr uint8_t gameplayMasks[NUM_PADS] = {
+    bit(0), // SEQUENCE MASK  1:plusone 0:shuffle
+    bit(1), // RECALL MASK    1:forward 0: backward
+    bit(2), // SOUND MASK     1:sound 0:silent
+    bit(3), // COLOR MASK     1:different 0:same
+};
 
 class MemoryBlink
 {
@@ -44,8 +47,8 @@ private:
   // determines where we start saving data in the eeprom
   uint8_t memStart{0x10};
 
-  // Each element dictates a game setting
-  uint8_t gameplay[NUM_PADS]{1, 1, 1, 1};
+  // Each bit dictates a game setting
+  uint8_t gameplay = 0b1111;
 
   // Variable to track which player is currently playing (1-4)
   uint8_t player{1};
@@ -55,7 +58,7 @@ private:
 
   uint32_t scanTimer{0}, scanTimeout{5 * 1000};
 
-  int level{0}; // starts at level 0
+  uint8_t score{0}; // starts at level 0
 
   int generatedSequence[MAX_SEQUENCE]{};
   int generatedSequenceLength = 0;
@@ -65,7 +68,6 @@ private:
 
   bool gameRunning{false};
   bool shouldGetInput{false};
-
 
 private:
   void ledOn(int pos);
@@ -85,16 +87,15 @@ private:
   void levelUp();
   void endGame();
 
+  uint8_t getHighscore();
+  void setHighscore(uint8_t highscore);
+
   void getInput();
-  
-  void gameplaySetup();
-  void drawGameplaySetupScreen();
-  
-  void playerSetup();
-  void drawPlayerSetupScreen();
-  
-  void gameLoop();
-  void drawGameLoopScreen();
+
+  void drawTop();
+
+  void drawBottom();
+  void drawBottom(const char *displayText);
 
 private:
   void handler();
@@ -106,5 +107,7 @@ public:
 
 public:
   void initLcd();
-  void startGame();
+  void gameplaySetup();
+  void playerSetup();
+  void gameLoop();
 };
