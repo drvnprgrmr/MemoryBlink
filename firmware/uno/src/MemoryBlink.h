@@ -47,6 +47,9 @@ private:
   // Each element dictates a game setting
   uint8_t gameplay[NUM_PADS]{1, 1, 1, 1};
 
+  // Variable to track which player is currently playing (1-4)
+  uint8_t player{1};
+
   // todo: create this later in init
   LiquidCrystal_I2C lcd{0x27, 16, 2};
 
@@ -83,10 +86,15 @@ private:
   void endGame();
 
   void getInput();
-  void gameLoop(uint8_t highscore);
-
-  void drawGameScreen();
-  void drawStartupScreen();
+  
+  void gameplaySetup();
+  void drawGameplaySetupScreen();
+  
+  void playerSetup();
+  void drawPlayerSetupScreen();
+  
+  void gameLoop();
+  void drawGameLoopScreen();
 
 private:
   void handler();

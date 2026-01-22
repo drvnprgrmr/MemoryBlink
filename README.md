@@ -23,7 +23,7 @@ Let the game change pace after every 10 levels, for 4 times. \
 
 ****
 Memory Blink! \
-Player:x (Gxxxx)
+Player x (Gxxxx)
 Score:xx (HS:xx)
 
 #### With screen

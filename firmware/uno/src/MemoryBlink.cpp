@@ -240,14 +240,15 @@ void MemoryBlink::getInput()
   }
 }
 
-void MemoryBlink::gameLoop(uint8_t highscore)
+void MemoryBlink::gameLoop()
 {
+  uint8_t highscore = 10;
   // add to the sequence
   addToGeneratedSequence();
-  
+
   debug.printf("G:%i%i%i%i (highscore: %i)\n", gameplay[0], gameplay[1], gameplay[2], gameplay[3], highscore);
   debug.printf("----------------------\n");
-  
+
   // print high score to the screen and delay
   /* ----------------------------------- top ---------------------------------- */
   lcd.clear();
@@ -262,8 +263,7 @@ void MemoryBlink::gameLoop(uint8_t highscore)
   lcd.print(gameplay[3]);
   lcd.print(")");
 
-
-/* --------------------------------- bottom --------------------------------- */
+  /* --------------------------------- bottom --------------------------------- */
 
   lcd.setCursor(0, 1);
   lcd.print("Score:");
@@ -282,7 +282,6 @@ void MemoryBlink::gameLoop(uint8_t highscore)
   lcd.print(highscore);
   lcd.print(")");
 
-
   /* -------------------------------------------------------------------------- */
 
   gameRunning = true;
@@ -298,31 +297,113 @@ void MemoryBlink::gameLoop(uint8_t highscore)
   debug.printf("===========================\n\n\n");
 }
 
-void MemoryBlink::startGame()
+void MemoryBlink::gameplaySetup()
 {
-  // todo: find out a way to turn off the arduino after a while
+  // update the screen
+  drawGameplaySetupScreen();
 
-  // get user's choice for the current game
+  // choose gameplay options for the current game
   while (true)
   {
-    Button const *updatedButton = buttonMan.getUpdate(ButtonState::PRESS_RELEASE); // just take first input
+    Button const *updatedButton = buttonMan.getUpdate();
 
     if (updatedButton != nullptr)
     {
-      // toggle that particular gameplay setting
-      gameplay[updatedButton->value] ^= 1;
+      if (updatedButton->state == ButtonState::PRESS_RELEASE)
+      {
+        // toggle that particular gameplay setting
+        gameplay[updatedButton->value] ^= 1;
 
-      // turn led at position on or off.
-      if (gameplay[updatedButton->value])
-      {
-        ledOn(updatedButton->value);
+        // update the screen
+        drawGameplaySetupScreen();
       }
-      else
+
+      // exit setup on any button hold
+      else if (updatedButton->state == ButtonState::HELD)
       {
-        ledOff(updatedButton->value);
+        return;
       }
     }
   }
+}
+
+void MemoryBlink::drawGameplaySetupScreen()
+{
+  lcd.clear();
+  lcd.noCursor();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Player ");
+  lcd.print(player);
+  lcd.print(" (G");
+
+  lcd.print(gameplay[0]);
+  lcd.print(gameplay[1]);
+  lcd.print(gameplay[2]);
+  lcd.print(gameplay[3]);
+  lcd.print(")");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Gameplay Setup");
+
+  lcd.setCursor(10, 0);
+  lcd.cursor();
+}
+
+void MemoryBlink::playerSetup()
+{
+  // update the screen
+  drawPlayerSetupScreen();
+
+  // choose gameplay options for the current game
+  while (true)
+  {
+    Button const *updatedButton = buttonMan.getUpdate();
+
+    if (updatedButton->state == ButtonState::PRESS_RELEASE)
+    {
+      // set the player for the current game
+      player = updatedButton->value + 1;
+
+      // update the screen
+      drawPlayerSetupScreen();
+    }
+
+    // exit setup on any button hold
+    else if (updatedButton->state == ButtonState::HELD)
+    {
+      return;
+    }
+  }
+}
+
+void MemoryBlink::drawPlayerSetupScreen()
+{
+  lcd.clear();
+  lcd.noCursor();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Player ");
+  lcd.print(player);
+  lcd.print(" (G");
+
+  lcd.print(gameplay[0]);
+  lcd.print(gameplay[1]);
+  lcd.print(gameplay[2]);
+  lcd.print(gameplay[3]);
+  lcd.print(")");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Select player.");
+
+  lcd.setCursor(7, 0);
+  lcd.cursor();
+}
+
+void MemoryBlink::startGame()
+{
+  gameplaySetup();
+  playerSetup();
 }
 
 void MemoryBlink::initLcd()
@@ -332,6 +413,19 @@ void MemoryBlink::initLcd()
   lcd.backlight();
   lcd.setCursor(0, 0);
   lcd.print("Memory Blink!");
+
+  lcd.setCursor(0, 1);
+  lcd.print("Press to start.");
+
+  while (true)
+  {
+    // todo: find out a way to turn off the arduino after a while if the user doesn't press anything (or put in low power sleep)
+    Button const *updatedButton = buttonMan.getUpdate(ButtonState::PRESSED);
+    if (updatedButton != nullptr)
+    {
+      return;
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- */

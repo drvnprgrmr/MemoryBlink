@@ -102,7 +102,8 @@ public:
       }
       else
       {
-        if (button->state == ButtonState::PRESSED || button->state == ButtonState::HELD)
+        if ((button->state == ButtonState::PRESSED || button->state == ButtonState::HELD) &&
+            (millis() - button->idleTimer > debounceTime))
         {
           // start idle timer
           button->idleTimer = millis();
@@ -125,6 +126,8 @@ public:
         updatedButtons[updatedButtonsCount++] = button;
       }
     }
+  
+  
   }
 
   // get a specific state update
@@ -155,5 +158,7 @@ public:
 
       return updatedButton;
     }
+
+    return nullptr;
   }
 };
