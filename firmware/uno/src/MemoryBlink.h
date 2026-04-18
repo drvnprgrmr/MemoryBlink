@@ -7,8 +7,16 @@
 #include "button_manager.hpp"
 
 #define NUM_PADS 4
-#define MAX_SEQUENCE 40
 #define MEM_START 0x10 // where to start saving variables
+#define MAX_SEQUENCE 40
+
+#define SCAN_TIMEOUT 5000 // 5 seconds timeout per scan
+
+#define DEFAULT_GAMEPLAY 0B1111 // default gameplay
+#define DEFAULT_PLAYER 1
+
+#define STARTING_FLASH_TIME 500
+#define STARTING_DELAY_TIME 200
 
 constexpr Note padNotes[NUM_PADS]{Note::NOTE_E4, Note::NOTE_CS4, Note::NOTE_A4, Note::NOTE_E3};
 
@@ -36,29 +44,19 @@ constexpr uint8_t gameplayMasks[NUM_PADS] = {
 class MemoryBlink
 {
 
-private:
+private: // CONSTANT VARIABLES
   uint8_t const *ledPins;
   uint8_t const *plainLedPins;
-
   Buzzer buzzer;
-
   ButtonMan<NUM_PADS> buttonMan;
+  LiquidCrystal_I2C lcd{0x27, 16, 2}; // todo: create this later in init
 
-  // determines where we start saving data in the eeprom
-  uint8_t memStart{0x10};
-
-  // Each bit dictates a game setting
-  uint8_t gameplay = 0b1111;
-
-  // Variable to track which player is currently playing (1-4)
-  uint8_t player{1};
-
-  // todo: create this later in init
-  LiquidCrystal_I2C lcd{0x27, 16, 2};
-
-  uint32_t scanTimer{0}, scanTimeout{5 * 1000};
-
-  uint8_t score{0}; // starts at level 0
+private:                                                                   // WORKING VARIABLES
+  uint8_t gameplay{DEFAULT_GAMEPLAY};                                      // Each bit dictates a game setting
+  uint8_t player{DEFAULT_PLAYER};                                          // Variable to track which player is currently playing (1-4)
+  uint16_t flashTime{STARTING_FLASH_TIME}, delayTime{STARTING_DELAY_TIME}; // Controls the timing of displayed sequences
+  uint32_t scanTimer{0};                                                   // Keeps track of elapsed time since last input
+  uint8_t score{0}, highscore{0};                                          // Tracks current player's score and highscore for selected gameplay
 
   int generatedSequence[MAX_SEQUENCE]{};
   int generatedSequenceLength = 0;
@@ -70,10 +68,6 @@ private:
   bool shouldGetInput{false};
 
 private:
-  void ledOn(int pos);
-  void ledOn();
-  void ledOff(int pos);
-  void ledOff();
   void padOn(int pos);
   void padOff(int pos);
 
@@ -93,12 +87,14 @@ private:
   void getInput();
 
   void drawTop();
-
   void drawBottom();
   void drawBottom(const char *displayText);
 
 private:
-  void handler();
+  void checkInput();
+
+  void reinitialize();
+  void printVars(const char *tag);
 
 public:
   // todo: use a config struct instead
@@ -107,6 +103,7 @@ public:
 
 public:
   void initLcd();
+  void startScreen();
   void gameplaySetup();
   void playerSetup();
   void gameLoop();

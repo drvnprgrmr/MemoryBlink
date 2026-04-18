@@ -109,6 +109,7 @@ public:
           button->idleTimer = millis();
 
           button->state = (button->state == ButtonState::PRESSED) ? ButtonState::PRESS_RELEASE : ButtonState::HOLD_RELEASE;
+
           updated = true;
         }
         else if (button->state != ButtonState::IDLE &&
@@ -126,8 +127,16 @@ public:
         updatedButtons[updatedButtonsCount++] = button;
       }
     }
-  
-  
+  }
+
+
+  void resetButtonsState() {
+    // reset buttons' state
+    for (uint8_t i = 0; i < count; i++)
+    {
+      Button *button = &buttons[i];
+      button->state = ButtonState::IDLE;
+    }
   }
 
   // get a specific state update

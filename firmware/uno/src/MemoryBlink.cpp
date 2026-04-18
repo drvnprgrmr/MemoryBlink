@@ -24,12 +24,10 @@ MemoryBlink::MemoryBlink(uint8_t const ledPins[NUM_PADS], uint8_t const plainLed
   randomSeed(analogRead(A0));
 
   // Startup blink
-  ledOn();
   buzzer.play(Note::NOTE_B0);
 
   delay(1000);
 
-  ledOff();
   buzzer.stop();
 
   delay(1000);
@@ -40,11 +38,12 @@ MemoryBlink::~MemoryBlink()
 }
 
 /* -------------------------------------------------------------------------- */
-/*                                   OUTPUTS                                  */
+/*                                   PADS                                     */
 /* -------------------------------------------------------------------------- */
 
-void MemoryBlink::ledOn(int pos)
+void MemoryBlink::padOn(int pos)
 {
+  /* --------------------------------- lights --------------------------------- */
   if (bitRead(gameplay, 3))
   {
     digitalWrite(ledPins[pos], 1);
@@ -53,39 +52,8 @@ void MemoryBlink::ledOn(int pos)
   {
     digitalWrite(plainLedPins[pos], 1);
   }
-}
 
-void MemoryBlink::ledOn()
-{
-  for (int i = 0; i < NUM_PADS; i++)
-  {
-    ledOn(i);
-  }
-}
-
-void MemoryBlink::ledOff(int pos)
-{
-  if (bitRead(gameplay, 3))
-  {
-    digitalWrite(ledPins[pos], 0);
-  }
-  else
-  {
-    digitalWrite(plainLedPins[pos], 0);
-  }
-}
-
-void MemoryBlink::ledOff()
-{
-  for (int i = 0; i < NUM_PADS; i++)
-  {
-    ledOff(i);
-  }
-}
-
-void MemoryBlink::padOn(int pos)
-{
-  ledOn(pos);
+  /* ---------------------------------- sound --------------------------------- */
   if (bitRead(gameplay, 2))
   {
     buzzer.play(padNotes[pos]);
@@ -94,7 +62,17 @@ void MemoryBlink::padOn(int pos)
 
 void MemoryBlink::padOff(int pos)
 {
-  ledOff(pos);
+  /* --------------------------------- lights --------------------------------- */
+  if (bitRead(gameplay, 3))
+  {
+    digitalWrite(ledPins[pos], 0);
+  }
+  else
+  {
+    digitalWrite(plainLedPins[pos], 0);
+  }
+
+  /* ---------------------------------- sound --------------------------------- */
   if (bitRead(gameplay, 2))
   {
     buzzer.stop();
@@ -118,8 +96,16 @@ void MemoryBlink::addToGeneratedSequence(int count)
 
 void MemoryBlink::displayGeneratedSequence()
 {
+  // decrease the flash time and delay time every 10 levels
+  if (score > 0 && !(score % (MAX_SEQUENCE / NUM_PADS)))
+  {
+    flashTime -= 100;
+    delayTime -= 50;
+  }
+
   for (int i = 0; i < generatedSequenceLength; i++)
   {
+    debug.printf("yes?\n");
     int pos = generatedSequence[i];
 
     padOn(pos);
@@ -174,7 +160,7 @@ void MemoryBlink::endGame()
   delay(1000);
 
   // update high score if it's been beaten
-  if (score > getHighscore())
+  if (score > highscore)
   {
     setHighscore(score);
   }
@@ -209,66 +195,70 @@ void MemoryBlink::getInput()
   shouldGetInput = true;
   scanTimer = millis();
 
+  // debug.printf("should get input: %i\n", shouldGetInput);
+
+  buttonMan.resetButtonsState();
   while (shouldGetInput)
   {
-    if (millis() - scanTimer > scanTimeout)
-    {
-      // getting input timed out
-      delay(1000);
-      endGame();
-    }
-
-    // check if a button was pressed
-    Button const *updatedButton = buttonMan.getUpdate(ButtonState::PRESSED);
+    // check if a button was updated
+    Button const *updatedButton = buttonMan.getUpdate();
 
     if (updatedButton != nullptr)
     {
-      // reset timeout timer
-      scanTimer = millis();
+      debug.printf("button => value: %i, state: %i\n", updatedButton->value, updatedButton->state);
+      if (updatedButton->state == ButtonState::PRESSED)
+      {
+        // reset timeout timer
+        scanTimer = millis();
 
-      // blink pad
-      padOn(updatedButton->value);
-      delay(200);
-      padOff(updatedButton->value);
+        // turn on pad
+        padOn(updatedButton->value);
 
-      // update input sequence
-      inputSequence[inputSequenceLength++] = updatedButton->value;
+        // update input sequence
+        inputSequence[inputSequenceLength++] = updatedButton->value;
+      }
 
-      // call the handler
-      handler();
+      else if (updatedButton->state == ButtonState::PRESS_RELEASE)
+      {
+        debug.printf("\n\nis it you?\n\n");
+        // turn off the pad on release
+        padOff(updatedButton->value);
+
+        //!
+        // verify the pressed button
+        checkInput();
+      }
+    }
+
+    if (millis() - scanTimer > SCAN_TIMEOUT)
+    {
+      // getting input timed out
+      endGame();
     }
   }
 }
 
 uint8_t MemoryBlink::getHighscore()
 {
-  uint8_t highscoreAddr = memStart + (player - 1) * bit(NUM_PADS) + gameplay;
+  uint8_t highscoreAddr = MEM_START + (player - 1) * bit(NUM_PADS) + gameplay;
 
   return EEPROM.read(highscoreAddr);
 }
 
 void MemoryBlink::setHighscore(uint8_t highscore)
 {
-  uint8_t highscoreAddr = memStart + (player - 1) * bit(NUM_PADS) + gameplay;
+  uint8_t highscoreAddr = MEM_START + (player - 1) * bit(NUM_PADS) + gameplay;
 
   EEPROM.write(highscoreAddr, highscore);
 }
 
 void MemoryBlink::gameLoop()
 {
+  // reset variables
+  reinitialize();
 
-  uint8_t highscore = getHighscore();
-
-  // add to the sequence
-  addToGeneratedSequence();
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Ready Player ");
-  lcd.print(player);
-  lcd.print("  ");
-
-  delay(4000);
+  // start sequence from NUM_PADS to avoid trivial start
+  addToGeneratedSequence(NUM_PADS);
 
   // print high score to the screen and delay
   drawTop();
@@ -280,8 +270,12 @@ void MemoryBlink::gameLoop()
     // display sequence
     displayGeneratedSequence();
 
+    printVars("before input");
+
     // get user input
     getInput();
+
+    printVars("after input");
   }
 }
 
@@ -295,8 +289,9 @@ void MemoryBlink::gameplaySetup()
   drawBottom("Gameplay Setup  ");
 
   // load last gameplay
-  gameplay = EEPROM.read(memStart - 1);
+  gameplay = EEPROM.read(MEM_START - 1);
 
+  buttonMan.resetButtonsState();
   // choose gameplay options for the current game
   while (true)
   {
@@ -317,7 +312,7 @@ void MemoryBlink::gameplaySetup()
       else if (updatedButton->state == ButtonState::HELD)
       {
         // save last gameplay
-        EEPROM.update(memStart - 1, gameplay);
+        EEPROM.update(MEM_START - 1, gameplay);
         return;
       }
     }
@@ -349,9 +344,10 @@ void MemoryBlink::playerSetup()
   drawBottom("Select a Player.");
 
   // load last player
-  player = EEPROM.read(memStart - 2);
+  player = EEPROM.read(MEM_START - 2);
 
   // choose gameplay options for the current game
+  buttonMan.resetButtonsState();
   while (true)
   {
     Button const *updatedButton = buttonMan.getUpdate();
@@ -369,7 +365,7 @@ void MemoryBlink::playerSetup()
     else if (updatedButton->state == ButtonState::HELD)
     {
       // save last player
-      EEPROM.update(memStart - 2, player);
+      EEPROM.update(MEM_START - 2, player);
       return;
     }
   }
@@ -377,8 +373,6 @@ void MemoryBlink::playerSetup()
 
 void MemoryBlink::drawBottom()
 {
-  uint8_t highscore = getHighscore();
-
   lcd.setCursor(0, 1);
   lcd.print("Score:");
   if (score < 10)
@@ -403,34 +397,52 @@ void MemoryBlink::drawBottom(const char *displayText)
   lcd.print(displayText);
 }
 
-
-void MemoryBlink::initLcd()
+void MemoryBlink::startScreen()
 {
-  // Initialize the lcd
-  lcd.init();
-  lcd.backlight();
+
   lcd.setCursor(0, 0);
   lcd.print("Memory Blink!");
 
   lcd.setCursor(0, 1);
   lcd.print("Press to start.");
 
+  buttonMan.resetButtonsState();
   while (true)
   {
     // todo: find out a way to turn off the arduino after a while if the user doesn't press anything (or put in low power sleep)
+    // todo: play "elevator music"
+
     Button const *updatedButton = buttonMan.getUpdate(ButtonState::PRESSED);
     if (updatedButton != nullptr)
     {
+      // show a "loading animation"
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Ready Player ");
+      lcd.print(player);
+      lcd.print("  ");
+
+      lcd.setCursor(0, 1);
+      for (int i = 0; i < NUM_PADS; i++) // todo: play startup tune
+      {
+        delay(1000);
+        lcd.print(".");
+      }
+      delay(1000);
+
       return;
     }
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/*                                 GAME MODES                                 */
-/* -------------------------------------------------------------------------- */
+void MemoryBlink::initLcd()
+{
+  // Initialize the lcd
+  lcd.init();
+  lcd.backlight();
+}
 
-void MemoryBlink::handler()
+void MemoryBlink::checkInput()
 {
   int inputSequencePos = inputSequenceLength - 1;
 
@@ -439,6 +451,7 @@ void MemoryBlink::handler()
   bool didFail{false};
   if (bitRead(gameplay, 1)) // do a forward recall check
   {
+
     didFail = inputSequence[inputSequencePos] != generatedSequence[inputSequencePos];
   }
   else // do a backward recall check
@@ -472,4 +485,32 @@ void MemoryBlink::handler()
       addToGeneratedSequence(NUM_PADS + score);
     }
   }
+}
+
+void MemoryBlink::reinitialize()
+{
+  // load last gameplay
+  gameplay = EEPROM.read(MEM_START - 1);
+
+  // load last player
+  player = EEPROM.read(MEM_START - 2);
+
+  flashTime = STARTING_FLASH_TIME, delayTime = STARTING_DELAY_TIME;
+  highscore = getHighscore();
+
+}
+
+void MemoryBlink::printVars(const char *tag)
+{
+  debug.printf("TAG: %s\n", tag);
+  debug.printf("======\n");
+
+  debug.printf("flash time: %i\n", flashTime);
+  debug.printf("delay time: %i\n", delayTime);
+  debug.printf("scanTimer: %lu, millis: %lu\n", scanTimer, millis());
+
+  debug.printf("game running: %i\n", gameRunning);
+  debug.printf("should get input: %i\n", shouldGetInput);
+
+  debug.printf("======\n\n\n\n");
 }

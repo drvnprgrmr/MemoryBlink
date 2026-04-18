@@ -16,6 +16,8 @@ void setup()
   MemoryBlink game{ledPins, plainLedPins, buttonPins, buzzerPin};
 
   game.initLcd();
+
+  game.startScreen();
   game.gameplaySetup();
   game.playerSetup();
 
@@ -23,5 +25,6 @@ void setup()
   while (true)
   {
     game.gameLoop();
+    game.startScreen();
   }
 }
