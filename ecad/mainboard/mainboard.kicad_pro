@@ -437,13 +437,17 @@
         "uuid": "10e9e845-0803-469c-b08a-573b4208af83"
       }
     ],
-    "used_designators": "",
+    "used_designators": "JP1-8,U2,R1-4,R7-8,R14-16,D1-11,#PWR3,#PWR8,#PWR10,#PWR13-14",
     "variants": []
   },
   "sheets": [
     [
       "10e9e845-0803-469c-b08a-573b4208af83",
-      "mb-v1"
+      "mainboard"
+    ],
+    [
+      "f7a59f06-4994-4431-86df-a3226a402016",
+      "LED Outputs"
     ]
   ],
   "text_variables": {},
