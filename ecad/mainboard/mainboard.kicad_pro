@@ -265,7 +265,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "mb-v1.kicad_pro",
+    "filename": "mainboard.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -432,8 +432,8 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "mb-v1.kicad_sch",
-        "name": "mb-v1",
+        "filename": "mainboard.kicad_sch",
+        "name": "mainboard",
         "uuid": "10e9e845-0803-469c-b08a-573b4208af83"
       }
     ],
