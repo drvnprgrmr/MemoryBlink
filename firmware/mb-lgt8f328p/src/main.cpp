@@ -7,6 +7,8 @@
 #include "buzzer.h"
 #include "led.h"
 
+Bonezegei_Printf debug(&Serial);
+
 #define DEBUG 1
 
 #define debugPrint(...) \
@@ -18,19 +20,56 @@
 
 
 
+typedef struct GameplaySettings
+{
+  LedType ledType;
+  bool soundOff;
+} GameplaySettings;
+
+
+GameplaySettings gameplaySettings = {LED_COLORED, false};
+
+Button2 buttons[NUM_PADS];
 constexpr uint8_t buttonPins[NUM_PADS]{7, 6, 5, 4};
 constexpr uint8_t buzzerPin = 10;
 
 Buzzer buzzer(buzzerPin);
 
-// Create Button2 instances for each button
-Button2 button1(buttonPins[0]);
-Button2 button2(buttonPins[1]);
-Button2 button3(buttonPins[2]);
-Button2 button4(buttonPins[3]);
+void game_btn_pressed(Button2 &btn)
+{
+  debugPrint("Button %d pressed\n", btn.getID());
+  ledOn(btn.getID(), gameplaySettings.ledType);
+  if (!gameplaySettings.soundOff)
+  {
+    buzzer.play(Note::NOTE_C4);
+  }
+}
 
-Bonezegei_Printf debug(&Serial);
+void game_btn_released(Button2 &btn)
+{
+  debugPrint("Button %d released\n", btn.getID());
+  ledOff(btn.getID(), gameplaySettings.ledType);
+  buzzer.stop();
+}
 
+void init_btns()
+{
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    buttons[i].begin(buttonPins[i]);
+    buttons[i].setID(i);
+    buttons[i].setPressedHandler(game_btn_pressed);
+    buttons[i].setReleasedHandler(game_btn_released);
+  }
+}
+
+void loop_btns()
+{
+  for (int i = 0; i < NUM_PADS; i++)
+  {
+    buttons[i].loop();
+  }
+}
 
 void testLeds()
 {
@@ -66,12 +105,13 @@ void setup()
   // game.gameplaySetup();
   // game.playerSetup();
 
-
   initLed();
-  while (true)
-  {
-    testLeds();
-    // game.gameLoop();
-    // game.startScreen();
-  }
+  testLeds();
+
+  init_btns();
+}
+
+void loop()
+{
+  loop_btns();
 }
