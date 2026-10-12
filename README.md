@@ -1,5 +1,7 @@
 # MemoryBlink
 
+![the project built on a breadboard](pictures/Memory%20Blink%20(breadboarded%20build).jpg)
+
 ## Firmware Versions
 
 I plan on having two versions for the firmware: one with just a simple segment display intended for more of a personal use without support for multiplayer features; while the other will have a simple lcd screen that uses a small user interface controllable by the buttons to change basic settings, add players and so on.
