@@ -3,8 +3,9 @@
 #include <Bonezegei_Printf.h>
 
 #include <Button2.h>
-#include "buzzer.h"
 #include "main.h"
+#include "buzzer.h"
+#include "led.h"
 
 #define DEBUG 1
 
@@ -16,10 +17,6 @@
   } while (0)
 
 
-
-
-constexpr uint8_t coloredLedPins[NUM_PADS]{12, 11, 9, 8};
-constexpr uint8_t plainLedPins[NUM_PADS]{A1, A2, A6, A7};
 
 constexpr uint8_t buttonPins[NUM_PADS]{7, 6, 5, 4};
 constexpr uint8_t buzzerPin = 10;
@@ -35,35 +32,26 @@ Button2 button4(buttonPins[3]);
 Bonezegei_Printf debug(&Serial);
 
 
+void testLeds()
+{
+    for (int i = 0; i < NUM_PADS; i++)
+    {
+        ledOn(i, LED_COLORED);
+        buzzer.play(Note::NOTE_C4);
+        delay(500);
+        ledOff(i, LED_COLORED);
+        buzzer.stop();
+    }
 
-void initLed() {
-  for (int i = 0; i < NUM_PADS; i++) {
-    pinMode(coloredLedPins[i], OUTPUT);
-    digitalWrite(coloredLedPins[i], LOW);
-
-    pinMode(plainLedPins[i], OUTPUT);
-    digitalWrite(plainLedPins[i], LOW);
-  }
+    for (int i = 0; i < NUM_PADS; i++)
+    {
+        ledOn(i, LED_PLAIN);
+        buzzer.play(Note::NOTE_D4);
+        delay(500);
+        ledOff(i, LED_PLAIN);
+        buzzer.stop();
+    }
 }
-
-void testLeds() {
-  for (int i = 0; i < NUM_PADS; i++) {
-    digitalWrite(coloredLedPins[i], HIGH);
-    buzzer.play(Note::NOTE_C4);
-    delay(200);
-    digitalWrite(coloredLedPins[i], LOW);
-    buzzer.stop();
-  }
-
-  for (int i = 0; i < NUM_PADS; i++) {
-    digitalWrite(plainLedPins[i], HIGH);
-    buzzer.play(Note::NOTE_D4);
-    delay(200);
-    digitalWrite(plainLedPins[i], LOW);
-    buzzer.stop();
-  }
-}
-
 
 void setup()
 {
