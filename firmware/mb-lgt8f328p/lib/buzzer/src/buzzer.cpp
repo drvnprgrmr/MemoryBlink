@@ -2,11 +2,16 @@
 
 Buzzer::Buzzer(uint8_t pinNumber) : pin(pinNumber)
 {
-  pinMode(pin, OUTPUT);
 }
 
 Buzzer::~Buzzer()
 {
+}
+
+void Buzzer::begin()
+{
+  pinMode(pin, OUTPUT);
+  noTone(pin);
 }
 
 void Buzzer::play(Note note)

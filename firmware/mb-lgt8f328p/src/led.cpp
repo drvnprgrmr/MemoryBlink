@@ -1,4 +1,7 @@
-#include "led.h"
+#include "main.h"
+
+const uint8_t coloredLedPins[NUM_PADS] = {12, 11, 9, 8};
+const uint8_t plainLedPins[NUM_PADS] = {A1, A2, A6, A7};
 
 void initLed()
 {
@@ -14,7 +17,11 @@ void initLed()
 
 void ledOn(int pos, LedType type)
 {
-    // Implementation for turning LED on
+    if (pos < 0 || pos >= NUM_PADS)
+    {
+        return;
+    }
+
     if (type == LED_COLORED)
     {
         digitalWrite(coloredLedPins[pos], HIGH);
@@ -27,7 +34,6 @@ void ledOn(int pos, LedType type)
 
 void ledOnFor(int pos, int duration, LedType type)
 {
-    // Implementation for turning LED on for a specified duration
     ledOn(pos, type);
     delay(duration);
     ledOff(pos, type);
@@ -35,7 +41,11 @@ void ledOnFor(int pos, int duration, LedType type)
 
 void ledOff(int pos, LedType type)
 {
-    // Implementation for turning LED off
+    if (pos < 0 || pos >= NUM_PADS)
+    {
+        return;
+    }
+
     if (type == LED_COLORED)
     {
         digitalWrite(coloredLedPins[pos], LOW);

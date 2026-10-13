@@ -129,6 +129,7 @@ private:
 public:
   Buzzer(uint8_t pinNumber);
   ~Buzzer();
+  void begin();
 
   // Play a specific note
   void play(Note note);
